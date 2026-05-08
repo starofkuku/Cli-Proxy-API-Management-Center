@@ -23,7 +23,6 @@ import { Select } from '@/components/ui/Select';
 import { IconFilterAll } from '@/components/ui/icons';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { ToggleSwitch } from '@/components/ui/ToggleSwitch';
-import { normalizePlanType, resolveCodexPlanType } from '@/utils/quota';
 import { copyToClipboard } from '@/utils/clipboard';
 import {
   MAX_CARD_PAGE_SIZE,
@@ -68,27 +67,6 @@ const BATCH_BAR_HIDDEN_TRANSFORM = 'translateX(-50%) translateY(56px)';
 const DEFAULT_REGULAR_PAGE_SIZE = 9;
 const DEFAULT_COMPACT_PAGE_SIZE = 12;
 
-type CodexPlanFilter = 'all' | 'free' | 'plus' | 'pro5x' | 'pro20x';
-
-const PREMIUM_CODEX_PRO5X_TYPES = new Set(['prolite', 'pro-lite', 'pro_lite']);
-
-const isCodexPlanFilter = (value: unknown): value is CodexPlanFilter =>
-  value === 'all' ||
-  value === 'free' ||
-  value === 'plus' ||
-  value === 'pro5x' ||
-  value === 'pro20x';
-
-const resolveCodexPlanFilterValue = (value: unknown): CodexPlanFilter | null => {
-  const normalized = normalizePlanType(value);
-  if (!normalized) return null;
-  if (normalized === 'free') return 'free';
-  if (normalized === 'plus') return 'plus';
-  if (normalized === 'pro') return 'pro20x';
-  if (PREMIUM_CODEX_PRO5X_TYPES.has(normalized)) return 'pro5x';
-  return null;
-};
-
 const escapeWildcardSearchSegment = (value: string) =>
   value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -108,7 +86,6 @@ export function AuthFilesPage() {
   const navigate = useNavigate();
 
   const [filter, setFilter] = useState<'all' | string>('all');
-  const [codexPlanFilter, setCodexPlanFilter] = useState<CodexPlanFilter>('all');
   const [problemOnly, setProblemOnly] = useState(false);
   const [disabledOnly, setDisabledOnly] = useState(false);
   const [compactMode, setCompactMode] = useState(false);
@@ -219,9 +196,6 @@ export function AuthFilesPage() {
       if (typeof persisted.filter === 'string' && persisted.filter.trim()) {
         setFilter(persisted.filter);
       }
-      if (isCodexPlanFilter(persisted.codexPlanFilter)) {
-        setCodexPlanFilter(persisted.codexPlanFilter);
-      }
       if (typeof persisted.problemOnly === 'boolean') {
         setProblemOnly(persisted.problemOnly);
       }
@@ -269,7 +243,6 @@ export function AuthFilesPage() {
 
     writeAuthFilesUiState({
       filter,
-      codexPlanFilter,
       problemOnly,
       disabledOnly,
       compactMode,
@@ -283,7 +256,6 @@ export function AuthFilesPage() {
     writePersistedAuthFilesCompactMode(compactMode);
   }, [
     compactMode,
-    codexPlanFilter,
     disabledOnly,
     filter,
     page,
@@ -403,17 +375,6 @@ export function AuthFilesPage() {
     [t]
   );
 
-  const codexPlanOptions = useMemo(
-    () => [
-      { value: 'all', label: t('auth_files.codex_plan_filter_all') },
-      { value: 'free', label: t('codex_quota.plan_free') },
-      { value: 'plus', label: t('codex_quota.plan_plus') },
-      { value: 'pro5x', label: t('codex_quota.plan_prolite') },
-      { value: 'pro20x', label: t('codex_quota.plan_pro') },
-    ],
-    [t]
-  );
-
   const typeCounts = useMemo(() => {
     const counts: Record<string, number> = { all: filesMatchingStatusFilters.length };
     filesMatchingStatusFilters.forEach((file) => {
@@ -431,10 +392,6 @@ export function AuthFilesPage() {
 
     return filesMatchingStatusFilters.filter((item) => {
       const matchType = filter === 'all' || item.type === filter;
-      const matchCodexPlan =
-        filter !== 'codex' ||
-        codexPlanFilter === 'all' ||
-        resolveCodexPlanFilterValue(resolveCodexPlanType(item)) === codexPlanFilter;
       const matchSearch =
         !normalizedSearch ||
         [item.name, item.type, item.provider].some((value) => {
@@ -443,9 +400,9 @@ export function AuthFilesPage() {
             ? wildcardSearch.test(content)
             : content.toLowerCase().includes(normalizedTerm);
         });
-      return matchType && matchCodexPlan && matchSearch;
+      return matchType && matchSearch;
     });
-  }, [codexPlanFilter, filesMatchingStatusFilters, filter, normalizedSearch, wildcardSearch]);
+  }, [filesMatchingStatusFilters, filter, normalizedSearch, wildcardSearch]);
 
   const sorted = useMemo(() => {
     const copy = [...filtered];
@@ -797,22 +754,6 @@ export function AuthFilesPage() {
                     fullWidth
                   />
                 </div>
-                {filter === 'codex' && (
-                  <div className={styles.filterItem}>
-                    <label>{t('auth_files.codex_plan_filter_label')}</label>
-                    <Select
-                      value={codexPlanFilter}
-                      options={codexPlanOptions}
-                      onChange={(value) => {
-                        if (!isCodexPlanFilter(value)) return;
-                        setCodexPlanFilter(value);
-                        setPage(1);
-                      }}
-                      ariaLabel={t('auth_files.codex_plan_filter_label')}
-                      fullWidth
-                    />
-                  </div>
-                )}
                 <div className={`${styles.filterItem} ${styles.filterToggleItem}`}>
                   <label>{t('auth_files.display_options_label')}</label>
                   <div className={styles.filterToggleGroup}>
