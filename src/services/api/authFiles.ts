@@ -5,10 +5,18 @@
 import { apiClient } from './client';
 import type { AuthFilesResponse } from '@/types/authFile';
 import type { OAuthModelAliasEntry } from '@/types';
+import { parseTimestampMs } from '@/utils/timestamp';
 
 type StatusError = { status?: number };
 type AuthFileStatusResponse = { status: string; disabled: boolean };
 type AuthFileEntry = AuthFilesResponse['files'][number];
+export type AuthFileFieldsPatch = {
+  prefix?: string;
+  proxy_url?: string;
+  headers?: Record<string, string>;
+  priority?: number;
+  note?: string;
+};
 type AuthFileBatchFailure = { name: string; error: string };
 type AuthFileBatchUploadResponse = {
   status?: string;
@@ -185,7 +193,7 @@ const readDateField = (entry: AuthFileEntry): number => {
       if (Number.isFinite(asNumber)) {
         return asNumber < 1e12 ? asNumber * 1000 : asNumber;
       }
-      const parsed = Date.parse(trimmed);
+      const parsed = parseTimestampMs(trimmed);
       if (!Number.isNaN(parsed)) {
         return parsed;
       }
@@ -399,6 +407,9 @@ export const authFilesApi = {
 
   setStatus: (name: string, disabled: boolean) =>
     apiClient.patch<AuthFileStatusResponse>('/auth-files/status', { name, disabled }),
+
+  patchFields: (name: string, fields: AuthFileFieldsPatch) =>
+    apiClient.patch('/auth-files/fields', { name, ...fields }),
 
   uploadFiles: async (files: File[]): Promise<AuthFileBatchUploadResult> => {
     const requestedNames = files.map((file) => file.name);

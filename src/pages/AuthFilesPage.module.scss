@@ -659,8 +659,9 @@
   position: relative;
   overflow: hidden;
   background-color: color-mix(in srgb, var(--bg-primary) 85%, transparent);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  --glass-blur: 8px;
+  backdrop-filter: var(--glass-backdrop-filter);
+  -webkit-backdrop-filter: var(--glass-backdrop-filter);
   border: 1px solid color-mix(in srgb, var(--border-color) 70%, transparent);
   border-radius: 12px;
   padding: 16px;
@@ -689,7 +690,21 @@
 }
 
 .fileCardDisabled {
-  opacity: 0.72;
+  background-color: color-mix(in srgb, var(--bg-primary) 78%, var(--bg-secondary));
+  border-color: color-mix(in srgb, var(--border-color) 62%, transparent);
+
+  .providerAvatar,
+  .cardHeaderContent,
+  .cardMeta,
+  .healthStatusMessage,
+  .cardInsights {
+    opacity: 0.72;
+  }
+
+  .cardSelection,
+  .cardActions {
+    opacity: 1;
+  }
 
   &:hover {
     transform: none;
@@ -1383,6 +1398,11 @@
   }
 }
 
+.prefixProxyTextareaInvalid {
+  border-color: var(--danger-color);
+  box-shadow: 0 0 0 3px rgba($error-color, 0.12);
+}
+
 .cardActions {
   display: flex;
   align-items: center;
@@ -1529,8 +1549,9 @@
   border-radius: $radius-lg;
   border: 1px solid color-mix(in srgb, var(--border-color) 70%, transparent);
   background: color-mix(in srgb, var(--bg-primary) 84%, transparent);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  --glass-blur: 12px;
+  backdrop-filter: var(--glass-backdrop-filter);
+  -webkit-backdrop-filter: var(--glass-backdrop-filter);
   box-shadow: var(--shadow-lg);
 }
 
