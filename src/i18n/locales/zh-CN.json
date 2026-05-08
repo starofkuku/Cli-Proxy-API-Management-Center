@@ -120,6 +120,10 @@
     "logs": "日志查看",
     "system_info": "中心信息"
   },
+  "usage_stats": {
+    "range_today": "今天",
+    "range_yesterday": "昨天"
+  },
   "dashboard": {
     "title": "仪表盘",
     "subtitle": "欢迎使用 CLI Proxy API 管理中心",
@@ -526,6 +530,8 @@
     "sort_default": "默认",
     "sort_az": "A-Z 名称",
     "sort_priority": "优先级",
+    "codex_plan_filter_label": "Codex 套餐",
+    "codex_plan_filter_all": "全部套餐",
     "priority_display": "优先级",
     "page_size_label": "单页数量",
     "page_size_unit": "个/页",

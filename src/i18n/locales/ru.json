@@ -120,6 +120,10 @@
     "logs": "Просмотр логов",
     "system_info": "Информация системы"
   },
+  "usage_stats": {
+    "range_today": "Сегодня",
+    "range_yesterday": "Вчера"
+  },
   "dashboard": {
     "title": "Панель управления",
     "subtitle": "Добро пожаловать в Центр управления CLI Proxy API",
@@ -526,6 +530,8 @@
     "sort_default": "По умолчанию",
     "sort_az": "A-Z Имя",
     "sort_priority": "Приоритет",
+    "codex_plan_filter_label": "План Codex",
+    "codex_plan_filter_all": "Все планы",
     "priority_display": "Приоритет",
     "page_size_label": "На странице",
     "page_size_unit": "элементов",

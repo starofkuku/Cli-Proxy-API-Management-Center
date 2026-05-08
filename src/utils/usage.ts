@@ -110,15 +110,62 @@ export interface ModelStatsSummary {
   latencySampleCount: number;
 }
 
-export type UsageTimeRange = '7h' | '24h' | '7d' | 'all';
+export type UsageTimeRange = 'today' | 'yesterday' | '7h' | '24h' | '7d' | 'all';
 
 const TOKENS_PER_PRICE_UNIT = 1_000_000;
 const MODEL_PRICE_STORAGE_KEY = 'cli-proxy-model-prices-v2';
 const USAGE_ENDPOINT_METHOD_REGEX = /^(GET|POST|PUT|PATCH|DELETE|OPTIONS|HEAD)\s+(\S+)/i;
-const USAGE_TIME_RANGE_MS: Record<Exclude<UsageTimeRange, 'all'>, number> = {
+const USAGE_TIME_RANGE_MS: Record<Exclude<UsageTimeRange, 'all' | 'today' | 'yesterday'>, number> = {
   '7h': 7 * 60 * 60 * 1000,
   '24h': 24 * 60 * 60 * 1000,
   '7d': 7 * 24 * 60 * 60 * 1000,
+};
+
+const UTC_PLUS_8_OFFSET_MS = 8 * 60 * 60 * 1000;
+
+type UsageRangeWindow = {
+  startMs: number;
+  endMsExclusive: number;
+};
+
+const getUtcPlus8DayStartMs = (timestampMs: number): number => {
+  const shiftedMs = timestampMs + UTC_PLUS_8_OFFSET_MS;
+  const shiftedDayStartMs = Math.floor(shiftedMs / (24 * 60 * 60 * 1000)) * 24 * 60 * 60 * 1000;
+  return shiftedDayStartMs - UTC_PLUS_8_OFFSET_MS;
+};
+
+const resolveUsageRangeWindow = (
+  range: UsageTimeRange,
+  nowMs: number
+): UsageRangeWindow | null => {
+  if (range === 'all') {
+    return null;
+  }
+
+  if (range === 'today') {
+    return {
+      startMs: getUtcPlus8DayStartMs(nowMs),
+      endMsExclusive: nowMs + 1,
+    };
+  }
+
+  if (range === 'yesterday') {
+    const todayStartMs = getUtcPlus8DayStartMs(nowMs);
+    return {
+      startMs: todayStartMs - 24 * 60 * 60 * 1000,
+      endMsExclusive: todayStartMs,
+    };
+  }
+
+  const rangeMs = USAGE_TIME_RANGE_MS[range];
+  if (!Number.isFinite(rangeMs) || rangeMs <= 0) {
+    return null;
+  }
+
+  return {
+    startMs: nowMs - rangeMs,
+    endMsExclusive: nowMs + 1,
+  };
 };
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -179,7 +226,8 @@ export function filterUsageByTimeRange<T>(
   range: UsageTimeRange,
   nowMs: number = Date.now()
 ): T {
-  if (range === 'all') {
+  const window = resolveUsageRangeWindow(range, nowMs);
+  if (!window) {
     return usageData;
   }
 
@@ -189,12 +237,6 @@ export function filterUsageByTimeRange<T>(
     return usageData;
   }
 
-  const rangeMs = USAGE_TIME_RANGE_MS[range];
-  if (!Number.isFinite(rangeMs) || rangeMs <= 0) {
-    return usageData;
-  }
-
-  const windowStart = nowMs - rangeMs;
   const filteredApis: Record<string, unknown> = {};
   const totalSummary = createUsageSummary();
 
@@ -227,7 +269,11 @@ export function filterUsageByTimeRange<T>(
           return;
         }
         const timestamp = parseTimestampMs(detailRecord.timestamp);
-        if (Number.isNaN(timestamp) || timestamp < windowStart || timestamp > nowMs) {
+        if (
+          Number.isNaN(timestamp) ||
+          timestamp < window.startMs ||
+          timestamp >= window.endMsExclusive
+        ) {
           return;
         }
 

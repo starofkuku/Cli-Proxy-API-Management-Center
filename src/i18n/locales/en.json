@@ -120,6 +120,10 @@
     "logs": "Logs Viewer",
     "system_info": "Management Center Info"
   },
+  "usage_stats": {
+    "range_today": "Today",
+    "range_yesterday": "Yesterday"
+  },
   "dashboard": {
     "title": "Dashboard",
     "subtitle": "Welcome to CLI Proxy API Management Center",
@@ -526,6 +530,8 @@
     "sort_default": "Default",
     "sort_az": "A-Z Name",
     "sort_priority": "Priority",
+    "codex_plan_filter_label": "Codex plan",
+    "codex_plan_filter_all": "All plans",
     "priority_display": "Priority",
     "page_size_label": "Per page",
     "page_size_unit": "items",
