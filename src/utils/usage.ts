@@ -111,11 +111,18 @@ export interface ModelStatsSummary {
 }
 
 export type UsageTimeRange = 'today' | 'yesterday' | '7h' | '24h' | '7d' | 'all';
+export type UsageTimeRangeQuery = {
+  from: string;
+  to: string;
+};
 
 const TOKENS_PER_PRICE_UNIT = 1_000_000;
 const MODEL_PRICE_STORAGE_KEY = 'cli-proxy-model-prices-v2';
 const USAGE_ENDPOINT_METHOD_REGEX = /^(GET|POST|PUT|PATCH|DELETE|OPTIONS|HEAD)\s+(\S+)/i;
-const USAGE_TIME_RANGE_MS: Record<Exclude<UsageTimeRange, 'all' | 'today' | 'yesterday'>, number> = {
+const USAGE_TIME_RANGE_MS: Record<
+  Exclude<UsageTimeRange, 'all' | 'today' | 'yesterday'>,
+  number
+> = {
   '7h': 7 * 60 * 60 * 1000,
   '24h': 24 * 60 * 60 * 1000,
   '7d': 7 * 24 * 60 * 60 * 1000,
@@ -134,10 +141,7 @@ const getUtcPlus8DayStartMs = (timestampMs: number): number => {
   return shiftedDayStartMs - UTC_PLUS_8_OFFSET_MS;
 };
 
-const resolveUsageRangeWindow = (
-  range: UsageTimeRange,
-  nowMs: number
-): UsageRangeWindow | null => {
+const resolveUsageRangeWindow = (range: UsageTimeRange, nowMs: number): UsageRangeWindow | null => {
   if (range === 'all') {
     return null;
   }
@@ -165,6 +169,35 @@ const resolveUsageRangeWindow = (
   return {
     startMs: nowMs - rangeMs,
     endMsExclusive: nowMs + 1,
+  };
+};
+
+const padDatePart = (value: number): string => String(value).padStart(2, '0');
+
+const formatUtcPlus8DateTime = (timestampMs: number): string => {
+  const date = new Date(timestampMs + UTC_PLUS_8_OFFSET_MS);
+  return (
+    [
+      date.getUTCFullYear(),
+      padDatePart(date.getUTCMonth() + 1),
+      padDatePart(date.getUTCDate()),
+    ].join('-') +
+    ` ${padDatePart(date.getUTCHours())}:${padDatePart(date.getUTCMinutes())}:${padDatePart(date.getUTCSeconds())}`
+  );
+};
+
+export const resolveUsageTimeRangeQuery = (
+  range: UsageTimeRange,
+  nowMs: number = Date.now()
+): UsageTimeRangeQuery | undefined => {
+  const window = resolveUsageRangeWindow(range, nowMs);
+  if (!window) {
+    return undefined;
+  }
+
+  return {
+    from: formatUtcPlus8DateTime(window.startMs),
+    to: formatUtcPlus8DateTime(Math.max(window.startMs, window.endMsExclusive - 1)),
   };
 };
 

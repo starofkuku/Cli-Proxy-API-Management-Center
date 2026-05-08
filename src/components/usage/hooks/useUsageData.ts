@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { USAGE_STATS_STALE_TIME_MS, useNotificationStore, useUsageStatsStore } from '@/stores';
 import { usageApi } from '@/services/api/usage';
+import type { UsageQueryParams } from '@/services/api/usage';
 import { downloadBlob } from '@/utils/download';
 import { loadModelPrices, saveModelPrices, type ModelPrice } from '@/utils/usage';
 
@@ -30,7 +31,12 @@ export interface UseUsageDataReturn {
   importing: boolean;
 }
 
-export function useUsageData(): UseUsageDataReturn {
+type UsageQueryParamsInput = UsageQueryParams | (() => UsageQueryParams | undefined) | undefined;
+
+const resolveUsageQueryParams = (input: UsageQueryParamsInput): UsageQueryParams | undefined =>
+  typeof input === 'function' ? input() : input;
+
+export function useUsageData(paramsInput?: UsageQueryParamsInput): UseUsageDataReturn {
   const { t } = useTranslation();
   const { showNotification } = useNotificationStore();
   const usageSnapshot = useUsageStatsStore((state) => state.usage);
@@ -45,13 +51,15 @@ export function useUsageData(): UseUsageDataReturn {
   const importInputRef = useRef<HTMLInputElement | null>(null);
 
   const loadUsage = useCallback(async () => {
-    await loadUsageStats({ force: true, staleTimeMs: USAGE_STATS_STALE_TIME_MS });
-  }, [loadUsageStats]);
+    const params = resolveUsageQueryParams(paramsInput);
+    await loadUsageStats({ force: true, staleTimeMs: USAGE_STATS_STALE_TIME_MS, params });
+  }, [loadUsageStats, paramsInput]);
 
   useEffect(() => {
-    void loadUsageStats({ staleTimeMs: USAGE_STATS_STALE_TIME_MS }).catch(() => {});
+    const params = resolveUsageQueryParams(paramsInput);
+    void loadUsageStats({ staleTimeMs: USAGE_STATS_STALE_TIME_MS, params }).catch(() => {});
     setModelPrices(loadModelPrices());
-  }, [loadUsageStats]);
+  }, [loadUsageStats, paramsInput]);
 
   const handleExport = async () => {
     setExporting(true);
@@ -65,7 +73,7 @@ export function useUsageData(): UseUsageDataReturn {
       const filename = `usage-export-${safeTimestamp.replace(/[:.]/g, '-')}.json`;
       downloadBlob({
         filename,
-        blob: new Blob([JSON.stringify(data ?? {}, null, 2)], { type: 'application/json' })
+        blob: new Blob([JSON.stringify(data ?? {}, null, 2)], { type: 'application/json' }),
       });
       showNotification(t('usage_stats.export_success'), 'success');
     } catch (err: unknown) {
@@ -105,12 +113,13 @@ export function useUsageData(): UseUsageDataReturn {
           added: result?.added ?? 0,
           skipped: result?.skipped ?? 0,
           total: result?.total_requests ?? 0,
-          failed: result?.failed_requests ?? 0
+          failed: result?.failed_requests ?? 0,
         }),
         'success'
       );
       try {
-        await loadUsageStats({ force: true, staleTimeMs: USAGE_STATS_STALE_TIME_MS });
+        const params = resolveUsageQueryParams(paramsInput);
+        await loadUsageStats({ force: true, staleTimeMs: USAGE_STATS_STALE_TIME_MS, params });
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : '';
         showNotification(
@@ -151,6 +160,6 @@ export function useUsageData(): UseUsageDataReturn {
     handleImportChange,
     importInputRef,
     exporting,
-    importing
+    importing,
   };
 }

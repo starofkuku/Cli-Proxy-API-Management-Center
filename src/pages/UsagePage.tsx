@@ -40,7 +40,7 @@ import {
   getModelNamesFromUsage,
   getApiStats,
   getModelStats,
-  filterUsageByTimeRange,
+  resolveUsageTimeRangeQuery,
   type UsageTimeRange,
 } from '@/utils/usage';
 import styles from './UsagePage.module.scss';
@@ -59,17 +59,17 @@ ChartJS.register(
 );
 
 const CHART_LINES_STORAGE_KEY = 'cli-proxy-usage-chart-lines-v1';
-const TIME_RANGE_STORAGE_KEY = 'cli-proxy-usage-time-range-v1';
+const TIME_RANGE_STORAGE_KEY = 'cli-proxy-usage-time-range-v2';
 const DEFAULT_CHART_LINES = ['all'];
-const DEFAULT_TIME_RANGE: UsageTimeRange = '24h';
+const DEFAULT_TIME_RANGE: UsageTimeRange = 'today';
 const MAX_CHART_LINES = 9;
 const TIME_RANGE_OPTIONS: ReadonlyArray<{ value: UsageTimeRange; labelKey: string }> = [
-  { value: 'today', labelKey: 'usage_stats.range_today' },
-  { value: 'yesterday', labelKey: 'usage_stats.range_yesterday' },
-  { value: 'all', labelKey: 'usage_stats.range_all' },
   { value: '7h', labelKey: 'usage_stats.range_7h' },
   { value: '24h', labelKey: 'usage_stats.range_24h' },
+  { value: 'today', labelKey: 'usage_stats.range_today' },
+  { value: 'yesterday', labelKey: 'usage_stats.range_yesterday' },
   { value: '7d', labelKey: 'usage_stats.range_7d' },
+  { value: 'all', labelKey: 'usage_stats.range_all' },
 ];
 const HOUR_WINDOW_BY_TIME_RANGE: Record<Exclude<UsageTimeRange, 'all'>, number> = {
   today: 24,
@@ -139,6 +139,9 @@ export function UsagePage() {
     source: OpenAIProviderConfig[] | undefined;
     providers: OpenAIProviderConfig[];
   } | null>(null);
+  const [chartLines, setChartLines] = useState<string[]>(loadChartLines);
+  const [timeRange, setTimeRange] = useState<UsageTimeRange>(loadTimeRange);
+  const getUsageQueryParams = useCallback(() => resolveUsageTimeRangeQuery(timeRange), [timeRange]);
 
   // Data hook
   const {
@@ -155,13 +158,9 @@ export function UsagePage() {
     importInputRef,
     exporting,
     importing,
-  } = useUsageData();
+  } = useUsageData(getUsageQueryParams);
 
   useHeaderRefresh(loadUsage);
-
-  // Chart lines state
-  const [chartLines, setChartLines] = useState<string[]>(loadChartLines);
-  const [timeRange, setTimeRange] = useState<UsageTimeRange>(loadTimeRange);
 
   useEffect(() => {
     let cancelled = false;
@@ -198,10 +197,7 @@ export function UsagePage() {
     [t]
   );
 
-  const filteredUsage = useMemo(
-    () => (usage ? filterUsageByTimeRange(usage, timeRange) : null),
-    [usage, timeRange]
-  );
+  const filteredUsage = usage;
   const hourWindowHours = timeRange === 'all' ? undefined : HOUR_WINDOW_BY_TIME_RANGE[timeRange];
 
   const handleChartLinesChange = useCallback((lines: string[]) => {
@@ -279,7 +275,11 @@ export function UsagePage() {
             <Select
               value={timeRange}
               options={timeRangeOptions}
-              onChange={(value) => setTimeRange(value as UsageTimeRange)}
+              onChange={(value) => {
+                if (isUsageTimeRange(value)) {
+                  setTimeRange(value);
+                }
+              }}
               className={styles.timeRangeSelectControl}
               ariaLabel={t('usage_stats.range_filter')}
               fullWidth={false}
