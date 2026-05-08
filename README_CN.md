@@ -28,8 +28,8 @@
 ### 方式 B：开发调试
 
 ```bash
-npm install
-npm run dev
+pnpm install
+pnpm dev
 ```
 
 打开 `http://localhost:5173`，然后连接到你的 CLI Proxy API 后端实例。
@@ -37,13 +37,13 @@ npm run dev
 ### 方式 C：构建单文件 HTML
 
 ```bash
-npm install
-npm run build
+pnpm install
+pnpm build
 ```
 
 - 构建产物：`dist/index.html`（资源已全部内联）。
 - 在 CLI Proxy API 的发布流程里会重命名为 `management.html`。
-- 本地预览：`npm run preview`
+- 本地预览：`pnpm preview`
 
 提示：直接用 `file://` 打开 `dist/index.html` 可能遇到浏览器 CORS 限制；更稳妥的方式是用预览/静态服务器打开。
 
@@ -137,12 +137,12 @@ npm run build
 ## 开发命令
 
 ```bash
-npm run dev        # 启动开发服务器
-npm run build      # tsc + Vite 构建
-npm run preview    # 本地预览 dist
-npm run lint       # ESLint（warnings 视为失败）
-npm run format     # Prettier
-npm run type-check # tsc --noEmit
+pnpm dev        # 启动开发服务器
+pnpm build      # tsc + Vite 构建
+pnpm preview    # 本地预览 dist
+pnpm lint       # ESLint（warnings 视为失败）
+pnpm format     # Prettier
+pnpm type-check # tsc --noEmit
 ```
 
 ## 贡献
@@ -151,7 +151,7 @@ npm run type-check # tsc --noEmit
 
 - 复现步骤（服务端版本 + UI 版本）
 - UI 改动截图
-- 验证记录（`npm run lint`、`npm run type-check`）
+- 验证记录（`pnpm lint`、`pnpm type-check`）
 
 ## 许可证
 

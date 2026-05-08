@@ -28,8 +28,8 @@ The address is auto-detected from the current page URL; manual override is suppo
 ### Option B: Run the dev server
 
 ```bash
-npm install
-npm run dev
+pnpm install
+pnpm dev
 ```
 
 Open `http://localhost:5173`, then connect to your CLI Proxy API backend instance.
@@ -37,13 +37,13 @@ Open `http://localhost:5173`, then connect to your CLI Proxy API backend instanc
 ### Option C: Build a single HTML file
 
 ```bash
-npm install
-npm run build
+pnpm install
+pnpm build
 ```
 
 - Output: `dist/index.html` (all assets are inlined).
 - For CLI Proxy API bundling, the release workflow renames it to `management.html`.
-- To preview locally: `npm run preview`
+- To preview locally: `pnpm preview`
 
 Tip: opening `dist/index.html` via `file://` may be blocked by browser CORS; serving it (preview/static server) is more reliable.
 
@@ -138,12 +138,12 @@ The UI language is automatically detected from browser settings and can be manua
 ## Development
 
 ```bash
-npm run dev        # Vite dev server
-npm run build      # tsc + Vite build
-npm run preview    # serve dist locally
-npm run lint       # ESLint (fails on warnings)
-npm run format     # Prettier
-npm run type-check # tsc --noEmit
+pnpm dev        # Vite dev server
+pnpm build      # tsc + Vite build
+pnpm preview    # serve dist locally
+pnpm lint       # ESLint (fails on warnings)
+pnpm format     # Prettier
+pnpm type-check # tsc --noEmit
 ```
 
 ## Contributing
@@ -152,7 +152,7 @@ Issues and PRs are welcome. Please include:
 
 - Reproduction steps (server version + UI version)
 - Screenshots for UI changes
-- Verification notes (`npm run lint`, `npm run type-check`)
+- Verification notes (`pnpm lint`, `pnpm type-check`)
 
 ## License
 
