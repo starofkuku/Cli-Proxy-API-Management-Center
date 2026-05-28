@@ -15,11 +15,14 @@ import {
 import { Button } from '@/components/ui/Button';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { Select } from '@/components/ui/Select';
+import { authFilesApi } from '@/services/api/authFiles';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { useHeaderRefresh } from '@/hooks/useHeaderRefresh';
 import { providersApi } from '@/services/api';
 import { useThemeStore, useConfigStore } from '@/stores';
 import type { OpenAIProviderConfig } from '@/types';
+import type { AuthFileItem } from '@/types/authFile';
+import type { CredentialInfo } from '@/types/sourceInfo';
 import {
   StatCards,
   UsageChart,
@@ -32,17 +35,25 @@ import {
   TokenBreakdownChart,
   CostTrendChart,
   ServiceHealthCard,
+  SourceTreeFilter,
+  type SourceTreeGroup,
   useUsageData,
   useSparklines,
   useChartData,
 } from '@/components/usage';
 import {
+  collectUsageDetails,
+  extractTotalTokens,
   getModelNamesFromUsage,
   getApiStats,
   getModelStats,
+  normalizeAuthIndex,
+  normalizeUsageSourceId,
   resolveUsageTimeRangeQuery,
   type UsageTimeRange,
 } from '@/utils/usage';
+import { buildSourceInfoMap, resolveSourceDisplay } from '@/utils/sourceResolver';
+import type { UsagePayload } from '@/components/usage';
 import styles from './UsagePage.module.scss';
 
 // Register Chart.js components
@@ -63,6 +74,8 @@ const TIME_RANGE_STORAGE_KEY = 'cli-proxy-usage-time-range-v2';
 const DEFAULT_CHART_LINES = ['all'];
 const DEFAULT_TIME_RANGE: UsageTimeRange = 'today';
 const MAX_CHART_LINES = 9;
+const SOURCE_GROUP_ORDER = ['provider', 'authFile', 'other'] as const;
+const PROVIDER_SOURCE_TYPES = new Set(['gemini', 'claude', 'codex', 'vertex', 'openai']);
 const TIME_RANGE_OPTIONS: ReadonlyArray<{ value: UsageTimeRange; labelKey: string }> = [
   { value: '7h', labelKey: 'usage_stats.range_7h' },
   { value: '24h', labelKey: 'usage_stats.range_24h' },
@@ -128,6 +141,201 @@ const loadTimeRange = (): UsageTimeRange => {
   }
 };
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  value !== null && typeof value === 'object' && !Array.isArray(value);
+
+const normalizeDetailSource = (detail: Record<string, unknown>) =>
+  normalizeUsageSourceId(detail.source);
+
+const readDetailAuthIndex = (detail: Record<string, unknown>) =>
+  detail.auth_index ?? detail.authIndex ?? detail.AuthIndex ?? null;
+
+const resolveSourceGroupId = (identityKey: string, type: string): SourceTreeGroup['id'] => {
+  if (identityKey.startsWith('auth:')) return 'authFile';
+  if (PROVIDER_SOURCE_TYPES.has(type.toLowerCase())) return 'provider';
+  return 'other';
+};
+
+const buildSourceTreeGroups = (
+  usage: UsagePayload | null,
+  sourceInfoMap: ReturnType<typeof buildSourceInfoMap>,
+  authFileMap: Map<string, CredentialInfo>,
+  t: (key: string, options?: Record<string, unknown>) => string
+): SourceTreeGroup[] => {
+  const optionMap = new Map<
+    string,
+    {
+      key: string;
+      label: string;
+      type: string;
+      count: number;
+      groupId: SourceTreeGroup['id'];
+    }
+  >();
+
+  collectUsageDetails(usage).forEach((detail) => {
+    const sourceInfo = resolveSourceDisplay(
+      detail.source ?? '',
+      detail.auth_index,
+      sourceInfoMap,
+      authFileMap
+    );
+    const key = sourceInfo.identityKey ?? `source:${detail.source || sourceInfo.displayName}`;
+    const existing = optionMap.get(key);
+    if (existing) {
+      existing.count += 1;
+      return;
+    }
+
+    optionMap.set(key, {
+      key,
+      label: sourceInfo.displayName,
+      type: sourceInfo.type,
+      count: 1,
+      groupId: resolveSourceGroupId(key, sourceInfo.type),
+    });
+  });
+
+  const grouped = new Map<SourceTreeGroup['id'], SourceTreeGroup['options']>();
+  optionMap.forEach((option) => {
+    const options = grouped.get(option.groupId) ?? [];
+    options.push({
+      key: option.key,
+      label: option.label,
+      type: option.type,
+      count: option.count,
+    });
+    grouped.set(option.groupId, options);
+  });
+
+  return SOURCE_GROUP_ORDER.map((id) => ({
+    id,
+    label:
+      id === 'provider'
+        ? t('usage_stats.source_group_provider')
+        : id === 'authFile'
+          ? t('usage_stats.source_group_auth_file')
+          : t('usage_stats.source_group_other'),
+    options: (grouped.get(id) ?? []).sort(
+      (a, b) => b.count - a.count || a.label.localeCompare(b.label)
+    ),
+  })).filter((group) => group.options.length > 0);
+};
+
+const createEmptyFilteredUsage = (usage: UsagePayload): UsagePayload => ({
+  ...usage,
+  total_requests: 0,
+  success_count: 0,
+  failure_count: 0,
+  total_tokens: 0,
+  apis: {},
+});
+
+const filterUsageBySelectedSources = (
+  usage: UsagePayload | null,
+  selectedSourceKeys: Set<string>,
+  allSourceKeys: string[],
+  sourceInfoMap: ReturnType<typeof buildSourceInfoMap>,
+  authFileMap: Map<string, CredentialInfo>
+): UsagePayload | null => {
+  if (!usage) return usage;
+  if (allSourceKeys.length === 0 || selectedSourceKeys.size === allSourceKeys.length) return usage;
+  if (selectedSourceKeys.size === 0) return createEmptyFilteredUsage(usage);
+
+  const apisRaw = isRecord(usage.apis) ? usage.apis : null;
+  if (!apisRaw) return usage;
+
+  const nextApis: Record<string, unknown> = {};
+  let totalRequests = 0;
+  let successCount = 0;
+  let failureCount = 0;
+  let totalTokens = 0;
+
+  Object.entries(apisRaw).forEach(([endpoint, apiData]) => {
+    if (!isRecord(apiData)) return;
+    const modelsRaw = isRecord(apiData.models) ? apiData.models : null;
+    if (!modelsRaw) return;
+
+    const nextModels: Record<string, unknown> = {};
+    let apiRequests = 0;
+    let apiSuccess = 0;
+    let apiFailure = 0;
+    let apiTokens = 0;
+
+    Object.entries(modelsRaw).forEach(([modelName, modelData]) => {
+      if (!isRecord(modelData)) return;
+      const detailsRaw = Array.isArray(modelData.details) ? modelData.details : [];
+      const nextDetails = detailsRaw.filter((detail): detail is Record<string, unknown> => {
+        if (!isRecord(detail)) return false;
+        const sourceInfo = resolveSourceDisplay(
+          normalizeDetailSource(detail),
+          readDetailAuthIndex(detail),
+          sourceInfoMap,
+          authFileMap
+        );
+        const key =
+          sourceInfo.identityKey ??
+          `source:${normalizeDetailSource(detail) || sourceInfo.displayName}`;
+        return selectedSourceKeys.has(key);
+      });
+
+      if (nextDetails.length === 0) return;
+
+      let modelSuccess = 0;
+      let modelFailure = 0;
+      let modelTokens = 0;
+      nextDetails.forEach((detail) => {
+        if (detail.failed === true) {
+          modelFailure += 1;
+        } else {
+          modelSuccess += 1;
+        }
+        modelTokens += extractTotalTokens({ ...(detail as object), __modelName: modelName });
+      });
+
+      const modelRequests = nextDetails.length;
+      nextModels[modelName] = {
+        ...modelData,
+        details: nextDetails,
+        total_requests: modelRequests,
+        success_count: modelSuccess,
+        failure_count: modelFailure,
+        total_tokens: modelTokens,
+      };
+
+      apiRequests += modelRequests;
+      apiSuccess += modelSuccess;
+      apiFailure += modelFailure;
+      apiTokens += modelTokens;
+    });
+
+    if (apiRequests === 0) return;
+
+    nextApis[endpoint] = {
+      ...apiData,
+      models: nextModels,
+      total_requests: apiRequests,
+      success_count: apiSuccess,
+      failure_count: apiFailure,
+      total_tokens: apiTokens,
+    };
+
+    totalRequests += apiRequests;
+    successCount += apiSuccess;
+    failureCount += apiFailure;
+    totalTokens += apiTokens;
+  });
+
+  return {
+    ...usage,
+    apis: nextApis,
+    total_requests: totalRequests,
+    success_count: successCount,
+    failure_count: failureCount,
+    total_tokens: totalTokens,
+  };
+};
+
 export function UsagePage() {
   const { t } = useTranslation();
   const isMobile = useMediaQuery('(max-width: 768px)');
@@ -141,6 +349,9 @@ export function UsagePage() {
   } | null>(null);
   const [chartLines, setChartLines] = useState<string[]>(loadChartLines);
   const [timeRange, setTimeRange] = useState<UsageTimeRange>(loadTimeRange);
+  const [authFileMap, setAuthFileMap] = useState<Map<string, CredentialInfo>>(new Map());
+  const [customSelectedSourceKeys, setCustomSelectedSourceKeys] = useState<Set<string>>(new Set());
+  const [sourceSelectionMode, setSourceSelectionMode] = useState<'all' | 'custom'>('all');
   const getUsageQueryParams = useCallback(() => resolveUsageTimeRangeQuery(timeRange), [timeRange]);
 
   // Data hook
@@ -164,6 +375,34 @@ export function UsagePage() {
 
   useEffect(() => {
     let cancelled = false;
+
+    authFilesApi
+      .list()
+      .then((res) => {
+        if (cancelled) return;
+        const files = Array.isArray(res) ? res : (res as { files?: AuthFileItem[] })?.files;
+        if (!Array.isArray(files)) return;
+
+        const map = new Map<string, CredentialInfo>();
+        files.forEach((file) => {
+          const key = normalizeAuthIndex(file['auth_index'] ?? file.authIndex);
+          if (!key) return;
+          map.set(key, {
+            name: file.name || key,
+            type: (file.type || file.provider || '').toString(),
+          });
+        });
+        setAuthFileMap(map);
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
     const source = openaiCompatibilityConfig;
 
     providersApi
@@ -183,10 +422,13 @@ export function UsagePage() {
   }, [openaiCompatibilityConfig]);
 
   const openaiProviderState = openaiProvidersWithAuthIndex;
-  const openaiProvidersForUsage =
-    openaiProviderState && openaiProviderState.source === openaiCompatibilityConfig
-      ? openaiProviderState.providers
-      : (openaiCompatibilityConfig ?? []);
+  const openaiProvidersForUsage = useMemo(
+    () =>
+      openaiProviderState && openaiProviderState.source === openaiCompatibilityConfig
+        ? openaiProviderState.providers
+        : (openaiCompatibilityConfig ?? []),
+    [openaiCompatibilityConfig, openaiProviderState]
+  );
 
   const timeRangeOptions = useMemo(
     () =>
@@ -197,7 +439,59 @@ export function UsagePage() {
     [t]
   );
 
-  const filteredUsage = usage;
+  const sourceInfoMap = useMemo(
+    () =>
+      buildSourceInfoMap({
+        geminiApiKeys: config?.geminiApiKeys || [],
+        claudeApiKeys: config?.claudeApiKeys || [],
+        codexApiKeys: config?.codexApiKeys || [],
+        vertexApiKeys: config?.vertexApiKeys || [],
+        openaiCompatibility: openaiProvidersForUsage,
+      }),
+    [
+      config?.claudeApiKeys,
+      config?.codexApiKeys,
+      config?.geminiApiKeys,
+      config?.vertexApiKeys,
+      openaiProvidersForUsage,
+    ]
+  );
+
+  const sourceTreeGroups = useMemo(
+    () => buildSourceTreeGroups(usage, sourceInfoMap, authFileMap, t),
+    [authFileMap, sourceInfoMap, t, usage]
+  );
+  const sourceOptionKeys = useMemo(
+    () => sourceTreeGroups.flatMap((group) => group.options.map((option) => option.key)),
+    [sourceTreeGroups]
+  );
+  const selectedSourceKeys = useMemo(
+    () =>
+      sourceSelectionMode === 'all'
+        ? new Set(sourceOptionKeys)
+        : new Set(sourceOptionKeys.filter((key) => customSelectedSourceKeys.has(key))),
+    [customSelectedSourceKeys, sourceOptionKeys, sourceSelectionMode]
+  );
+
+  const handleSourceSelectionChange = useCallback(
+    (nextKeys: Set<string>) => {
+      setSourceSelectionMode(nextKeys.size === sourceOptionKeys.length ? 'all' : 'custom');
+      setCustomSelectedSourceKeys(nextKeys);
+    },
+    [sourceOptionKeys.length]
+  );
+
+  const filteredUsage = useMemo(
+    () =>
+      filterUsageBySelectedSources(
+        usage,
+        selectedSourceKeys,
+        sourceOptionKeys,
+        sourceInfoMap,
+        authFileMap
+      ),
+    [authFileMap, selectedSourceKeys, sourceInfoMap, sourceOptionKeys, usage]
+  );
   const hourWindowHours = timeRange === 'all' ? undefined : HOUR_WINDOW_BY_TIME_RANGE[timeRange];
 
   const handleChartLinesChange = useCallback((lines: string[]) => {
@@ -245,7 +539,7 @@ export function UsagePage() {
   } = useChartData({ usage: filteredUsage, chartLines, isDark, isMobile, hourWindowHours });
 
   // Derived data
-  const modelNames = useMemo(() => getModelNamesFromUsage(usage), [usage]);
+  const modelNames = useMemo(() => getModelNamesFromUsage(filteredUsage), [filteredUsage]);
   const apiStats = useMemo(
     () => getApiStats(filteredUsage, modelPrices),
     [filteredUsage, modelPrices]
@@ -277,6 +571,8 @@ export function UsagePage() {
               options={timeRangeOptions}
               onChange={(value) => {
                 if (isUsageTimeRange(value)) {
+                  setSourceSelectionMode('all');
+                  setCustomSelectedSourceKeys(new Set());
                   setTimeRange(value);
                 }
               }}
@@ -285,6 +581,12 @@ export function UsagePage() {
               fullWidth={false}
             />
           </div>
+          <SourceTreeFilter
+            groups={sourceTreeGroups}
+            selectedKeys={selectedSourceKeys}
+            onChange={handleSourceSelectionChange}
+            disabled={loading || sourceOptionKeys.length === 0}
+          />
           <Button
             variant="secondary"
             size="sm"
@@ -352,7 +654,7 @@ export function UsagePage() {
       />
 
       {/* Service Health */}
-      <ServiceHealthCard usage={usage} loading={loading} />
+      <ServiceHealthCard usage={filteredUsage} loading={loading} />
 
       {/* Charts Grid */}
       <div className={styles.chartsGrid}>

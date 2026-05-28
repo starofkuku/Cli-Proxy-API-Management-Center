@@ -38,6 +38,13 @@
   flex-wrap: wrap;
 }
 
+.sourceFilterGroup {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .timeRangeLabel {
   font-size: 12px;
   color: var(--text-secondary);
@@ -46,6 +53,166 @@
 
 .timeRangeSelectControl {
   min-width: 164px;
+}
+
+.sourceTreeSelect {
+  position: relative;
+}
+
+.sourceTreeButton {
+  min-width: 184px;
+  min-height: 34px;
+  border: 1px solid var(--border-color);
+  border-radius: $radius-sm;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 10px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    border-color $transition-fast,
+    background-color $transition-fast,
+    box-shadow $transition-fast;
+
+  &:hover:not(:disabled),
+  &:focus-visible {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary-color) 13%, transparent);
+    outline: none;
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+  }
+
+  > span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.sourceTreeButtonIconOpen {
+  transform: rotate(180deg);
+}
+
+.sourceTreeDropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 40;
+  width: min(360px, calc(100vw - 32px));
+  max-height: min(440px, calc(100vh - 160px));
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border-color);
+  border-radius: $radius-md;
+  background: var(--bg-primary);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+}
+
+.sourceTreeHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+}
+
+.sourceTreeScope {
+  color: var(--text-tertiary);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.sourceTreeGroups {
+  overflow: auto;
+  padding: 8px;
+}
+
+.sourceTreeGroup {
+  border-radius: $radius-sm;
+
+  & + & {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border-color);
+  }
+}
+
+.sourceTreeGroupHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 4px;
+}
+
+.sourceTreeCheck {
+  min-width: 0;
+}
+
+.sourceTreeCheckLabel,
+.sourceTreeGroupLabel {
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.sourceTreeCount {
+  flex-shrink: 0;
+  color: var(--text-tertiary);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.sourceTreeItems {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-left: 28px;
+}
+
+.sourceTreeItem {
+  width: 100%;
+  align-items: flex-start;
+  border-radius: $radius-sm;
+  padding: 6px 4px;
+
+  &:hover {
+    background: var(--bg-secondary);
+  }
+}
+
+.sourceTreeItemLabel {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sourceTreeItemName {
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+
+.sourceTreeItemMeta {
+  color: var(--text-tertiary);
+  font-size: 11px;
+  font-weight: 500;
+  overflow-wrap: anywhere;
 }
 
 .pageTitle {
