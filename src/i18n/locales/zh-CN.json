@@ -1362,6 +1362,13 @@
     "refresh_files": "刷新认证文件",
     "refresh_files_and_quota": "刷新认证文件&额度",
     "refresh_all_credentials": "刷新全部凭证",
+    "page_size_label": "单页数量",
+    "page_size_option": "{{count}} 个/页",
+    "pagination_prev": "上一页",
+    "pagination_next": "下一页",
+    "pagination_info": "第 {{current}} / {{total}} 页 · 共 {{count}} 个凭证",
+    "pagination_jump": "跳至",
+    "pagination_page": "第 {{page}} 页",
     "card_idle_hint": "请使用顶部“刷新全部凭证”按钮获取最新额度。"
   },
   "system_info": {

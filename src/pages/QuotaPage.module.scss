@@ -247,33 +247,23 @@
 
 // 卡片渐变背景 — 基于 TYPE_COLORS light.bg 转 rgba
 .claudeCard {
-  background-image: linear-gradient(180deg,
-      rgba(251, 236, 228, 0.18),
-      rgba(251, 236, 228, 0));
+  background-image: linear-gradient(180deg, rgba(251, 236, 228, 0.18), rgba(251, 236, 228, 0));
 }
 
 .antigravityCard {
-  background-image: linear-gradient(180deg,
-      rgba(224, 247, 250, 0.12),
-      rgba(224, 247, 250, 0));
+  background-image: linear-gradient(180deg, rgba(224, 247, 250, 0.12), rgba(224, 247, 250, 0));
 }
 
 .codexCard {
-  background-image: linear-gradient(180deg,
-      rgba(234, 231, 255, 0.18),
-      rgba(234, 231, 255, 0));
+  background-image: linear-gradient(180deg, rgba(234, 231, 255, 0.18), rgba(234, 231, 255, 0));
 }
 
 .geminiCliCard {
-  background-image: linear-gradient(180deg,
-      rgba(224, 232, 255, 0.2),
-      rgba(224, 232, 255, 0));
+  background-image: linear-gradient(180deg, rgba(224, 232, 255, 0.2), rgba(224, 232, 255, 0));
 }
 
 .kimiCard {
-  background-image: linear-gradient(180deg,
-      rgba(220, 232, 255, 0.2),
-      rgba(220, 232, 255, 0));
+  background-image: linear-gradient(180deg, rgba(220, 232, 255, 0.2), rgba(220, 232, 255, 0));
 }
 
 .quotaSection {
@@ -636,7 +626,10 @@
   display: flex;
   flex-direction: column;
   gap: $spacing-sm;
-  transition: transform $transition-fast, box-shadow $transition-fast, border-color $transition-fast;
+  transition:
+    transform $transition-fast,
+    box-shadow $transition-fast,
+    border-color $transition-fast;
 
   &:hover {
     transform: translateY(-2px);
@@ -669,14 +662,40 @@
   line-height: 1.4;
 }
 
-.pagination {
+.paginationToolbar {
   display: flex;
-  justify-content: center;
   align-items: center;
-  gap: $spacing-md;
-  margin-top: $spacing-lg;
-  padding-top: $spacing-md;
-  border-top: 1px solid var(--border-color);
+  justify-content: space-between;
+  gap: $spacing-sm;
+  flex-wrap: wrap;
+  margin-bottom: $spacing-md;
+  padding: $spacing-sm;
+  border: 1px solid var(--border-color);
+  border-radius: $radius-md;
+  background: color-mix(in srgb, var(--bg-secondary) 86%, transparent);
+}
+
+.paginationControls,
+.paginationSelectGroup {
+  display: inline-flex;
+  align-items: center;
+  gap: $spacing-sm;
+  min-width: 0;
+}
+
+.paginationLabel {
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.paginationSizeSelect {
+  min-width: 112px;
+}
+
+.paginationJumpSelect {
+  min-width: 104px;
 }
 
 .pageInfo {
@@ -685,6 +704,29 @@
   padding: $spacing-xs $spacing-md;
   background-color: var(--bg-secondary);
   border-radius: $radius-md;
+  white-space: nowrap;
+}
+
+@include mobile {
+  .paginationToolbar,
+  .paginationControls,
+  .paginationSelectGroup {
+    width: 100%;
+  }
+
+  .paginationControls {
+    justify-content: space-between;
+  }
+
+  .paginationSizeSelect,
+  .paginationJumpSelect {
+    flex: 1 1 auto;
+  }
+
+  .pageInfo {
+    flex: 1 1 auto;
+    text-align: center;
+  }
 }
 
 .warningOverlay {

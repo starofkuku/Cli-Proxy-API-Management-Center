@@ -76,6 +76,11 @@ const buildWildcardSearch = (value: string): RegExp | null => {
   return new RegExp(pattern, 'i');
 };
 
+const compareEnabledFirst = (left: { disabled?: boolean }, right: { disabled?: boolean }) => {
+  if (left.disabled === right.disabled) return 0;
+  return left.disabled === true ? 1 : -1;
+};
+
 export function AuthFilesPage() {
   const { t } = useTranslation();
   const showNotification = useNotificationStore((state) => state.showNotification);
@@ -409,6 +414,8 @@ export function AuthFilesPage() {
     const copy = [...filtered];
     if (sortMode === 'default') {
       copy.sort((a, b) => {
+        const statusCompare = compareEnabledFirst(a, b);
+        if (statusCompare !== 0) return statusCompare;
         const providerA = normalizeProviderKey(String(a.provider ?? a.type ?? 'unknown'));
         const providerB = normalizeProviderKey(String(b.provider ?? b.type ?? 'unknown'));
         const providerCompare = providerA.localeCompare(providerB);
