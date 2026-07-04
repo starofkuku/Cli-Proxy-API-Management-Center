@@ -50,6 +50,7 @@ import { useAuthFilesModels } from '@/features/authFiles/hooks/useAuthFilesModel
 import { useAuthFilesOauth } from '@/features/authFiles/hooks/useAuthFilesOauth';
 import { useAuthFilesPrefixProxyEditor } from '@/features/authFiles/hooks/useAuthFilesPrefixProxyEditor';
 import { useAuthFilesStatusBarCache } from '@/features/authFiles/hooks/useAuthFilesStatusBarCache';
+import { convertGptSessionTextToCpaDocument } from '@/features/authFiles/gptSessionToCpa';
 import {
   isAuthFilesSortMode,
   readAuthFilesUiState,
@@ -67,6 +68,8 @@ const BATCH_BAR_BASE_TRANSFORM = 'translateX(-50%)';
 const BATCH_BAR_HIDDEN_TRANSFORM = 'translateX(-50%) translateY(56px)';
 const DEFAULT_REGULAR_PAGE_SIZE = 9;
 const DEFAULT_COMPACT_PAGE_SIZE = 12;
+
+type PasteJsonFormat = 'cpa' | 'gptSession';
 
 const escapeWildcardSearchSegment = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -118,6 +121,7 @@ export function AuthFilesPage() {
   const [sortMode, setSortMode] = useState<AuthFilesSortMode>('default');
   const [pasteJsonModalOpen, setPasteJsonModalOpen] = useState(false);
   const [pasteJsonText, setPasteJsonText] = useState('');
+  const [pasteJsonFormat, setPasteJsonFormat] = useState<PasteJsonFormat>('cpa');
   const [batchActionBarVisible, setBatchActionBarVisible] = useState(false);
   const [uiStateHydrated, setUiStateHydrated] = useState(false);
   const floatingBatchActionsRef = useRef<HTMLDivElement>(null);
@@ -352,6 +356,7 @@ export function AuthFilesPage() {
     if (uploading) return;
     setPasteJsonModalOpen(false);
     setPasteJsonText('');
+    setPasteJsonFormat('cpa');
   }, [uploading]);
 
   const handlePasteJsonSubmit = useCallback(async () => {
@@ -361,11 +366,23 @@ export function AuthFilesPage() {
       return;
     }
 
-    let parsed: Record<string, unknown>;
+    let parsed: Record<string, unknown> | Record<string, unknown>[];
     try {
-      parsed = parseJsonObjectText(trimmed);
-    } catch {
-      showNotification(t('auth_files.paste_json_invalid'), 'error');
+      parsed =
+        pasteJsonFormat === 'gptSession'
+          ? convertGptSessionTextToCpaDocument(trimmed)
+          : parseJsonObjectText(trimmed);
+    } catch (err: unknown) {
+      const errorMessage =
+        pasteJsonFormat === 'gptSession' && err instanceof Error
+          ? err.message
+          : t('auth_files.paste_json_invalid');
+      showNotification(
+        pasteJsonFormat === 'gptSession'
+          ? `${t('auth_files.paste_json_convert_failed')}: ${errorMessage}`
+          : errorMessage,
+        'error'
+      );
       return;
     }
 
@@ -375,7 +392,8 @@ export function AuthFilesPage() {
 
     setPasteJsonModalOpen(false);
     setPasteJsonText('');
-  }, [pasteJsonText, showNotification, t, uploadJsonText]);
+    setPasteJsonFormat('cpa');
+  }, [pasteJsonFormat, pasteJsonText, showNotification, t, uploadJsonText]);
 
   useHeaderRefresh(handleHeaderRefresh);
 
@@ -419,6 +437,14 @@ export function AuthFilesPage() {
       { value: 'priority', label: t('auth_files.sort_priority') },
     ],
     [t]
+  );
+
+  const pasteJsonFormatOptions = useMemo(
+    () => [
+      { value: 'cpa', label: 'cpa' },
+      { value: 'gptSession', label: 'GptSession' },
+    ],
+    []
   );
 
   const typeCounts = useMemo(() => {
@@ -995,6 +1021,16 @@ export function AuthFilesPage() {
           </div>
         }
       >
+        <div className={styles.formGroup}>
+          <label>{t('auth_files.paste_json_format_label')}</label>
+          <Select
+            value={pasteJsonFormat}
+            options={pasteJsonFormatOptions}
+            onChange={(value) => setPasteJsonFormat(value as PasteJsonFormat)}
+            ariaLabel={t('auth_files.paste_json_format_label')}
+            fullWidth
+          />
+        </div>
         <div className={styles.formGroup}>
           <label htmlFor="auth-file-paste-json">{t('auth_files.paste_json_label')}</label>
           <textarea
