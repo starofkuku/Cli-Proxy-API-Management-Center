@@ -100,7 +100,6 @@
   }
 }
 
-
 .filterAllIconWrap {
   position: relative;
   border-color: color-mix(in srgb, var(--primary-color) 20%, var(--border-color));
@@ -118,7 +117,6 @@
   display: block;
   color: color-mix(in srgb, var(--primary-color) 70%, var(--text-primary));
 }
-
 
 .filterContent {
   display: flex;
@@ -1847,6 +1845,30 @@
 
   &::placeholder {
     color: var(--text-tertiary);
+  }
+}
+
+.jsonPasteTextarea {
+  min-height: 320px;
+  line-height: 1.55;
+  tab-size: 2;
+}
+
+.jsonPasteHint {
+  margin: 0;
+  color: var(--text-tertiary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.modalActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: $spacing-sm;
+  width: 100%;
+
+  @include mobile {
+    flex-direction: column-reverse;
   }
 }
 

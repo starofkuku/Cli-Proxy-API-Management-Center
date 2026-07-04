@@ -38,6 +38,7 @@ export type UseAuthFilesDataResult = {
   loadFiles: () => Promise<void>;
   handleUploadClick: () => void;
   handleFileChange: (event: ChangeEvent<HTMLInputElement>) => Promise<void>;
+  uploadJsonText: (text: string, fileName: string) => Promise<boolean>;
   handleDelete: (name: string) => void;
   handleDeleteAll: (options: DeleteAllOptions) => void;
   handleDownload: (name: string) => Promise<void>;
@@ -116,13 +117,7 @@ export function useAuthFilesData(): UseAuthFilesDataResult {
   }, []);
 
   const applyDeletedFiles = useCallback((names: string[]) => {
-    const deletedNames = Array.from(
-      new Set(
-        names
-          .map((name) => name.trim())
-          .filter(Boolean)
-      )
-    );
+    const deletedNames = Array.from(new Set(names.map((name) => name.trim()).filter(Boolean)));
     if (deletedNames.length === 0) return;
 
     const deletedSet = new Set(deletedNames);
@@ -229,9 +224,7 @@ export function useAuthFilesData(): UseAuthFilesDataResult {
         }
 
         if (result.failed.length > 0) {
-          const details = result.failed
-            .map((item) => `${item.name}: ${item.error}`)
-            .join('; ');
+          const details = result.failed.map((item) => `${item.name}: ${item.error}`).join('; ');
           showNotification(`${t('notification.upload_failed')}: ${details}`, 'error');
         }
       } catch (err: unknown) {
@@ -241,6 +234,43 @@ export function useAuthFilesData(): UseAuthFilesDataResult {
         setUploading(false);
         event.target.value = '';
       }
+    },
+    [loadFiles, showNotification, t]
+  );
+
+  const uploadJsonText = useCallback(
+    async (text: string, fileName: string): Promise<boolean> => {
+      const file = new File([text], fileName, { type: 'application/json' });
+      if (file.size > MAX_AUTH_FILE_SIZE) {
+        showNotification(
+          t('auth_files.upload_error_size', { maxSize: formatFileSize(MAX_AUTH_FILE_SIZE) }),
+          'error'
+        );
+        return false;
+      }
+
+      setUploading(true);
+      try {
+        const result = await authFilesApi.uploadFiles([file]);
+
+        if (result.uploaded > 0) {
+          showNotification(t('auth_files.upload_success'), 'success');
+          await loadFiles();
+          return true;
+        }
+
+        if (result.failed.length > 0) {
+          const details = result.failed.map((item) => `${item.name}: ${item.error}`).join('; ');
+          showNotification(`${t('notification.upload_failed')}: ${details}`, 'error');
+        }
+      } catch (err: unknown) {
+        const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+        showNotification(`${t('notification.upload_failed')}: ${errorMessage}`, 'error');
+      } finally {
+        setUploading(false);
+      }
+
+      return false;
     },
     [loadFiles, showNotification, t]
   );
@@ -336,9 +366,7 @@ export function useAuthFilesData(): UseAuthFilesDataResult {
                 return;
               }
 
-              const result = await authFilesApi.deleteFiles(
-                filesToDelete.map((file) => file.name)
-              );
+              const result = await authFilesApi.deleteFiles(filesToDelete.map((file) => file.name));
               const success = result.deleted;
               const failed = result.failed.length;
 
@@ -533,7 +561,10 @@ export function useAuthFilesData(): UseAuthFilesDataResult {
         );
 
         if (failCount === 0) {
-          showNotification(t('auth_files.batch_status_success', { count: successCount }), 'success');
+          showNotification(
+            t('auth_files.batch_status_success', { count: successCount }),
+            'success'
+          );
         } else {
           showNotification(
             t('auth_files.batch_status_partial', { success: successCount, failed: failCount }),
@@ -649,6 +680,7 @@ export function useAuthFilesData(): UseAuthFilesDataResult {
     loadFiles,
     handleUploadClick,
     handleFileChange,
+    uploadJsonText,
     handleDelete,
     handleDeleteAll,
     handleDownload,

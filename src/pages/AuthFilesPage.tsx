@@ -20,6 +20,7 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
+import { Modal } from '@/components/ui/Modal';
 import { IconFilterAll } from '@/components/ui/icons';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { ToggleSwitch } from '@/components/ui/ToggleSwitch';
@@ -67,8 +68,7 @@ const BATCH_BAR_HIDDEN_TRANSFORM = 'translateX(-50%) translateY(56px)';
 const DEFAULT_REGULAR_PAGE_SIZE = 9;
 const DEFAULT_COMPACT_PAGE_SIZE = 12;
 
-const escapeWildcardSearchSegment = (value: string) =>
-  value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const escapeWildcardSearchSegment = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 const buildWildcardSearch = (value: string): RegExp | null => {
   if (!value.includes('*')) return null;
@@ -79,6 +79,19 @@ const buildWildcardSearch = (value: string): RegExp | null => {
 const compareEnabledFirst = (left: { disabled?: boolean }, right: { disabled?: boolean }) => {
   if (left.disabled === right.disabled) return 0;
   return left.disabled === true ? 1 : -1;
+};
+
+const padDatePart = (value: number) => String(value).padStart(2, '0');
+
+const formatAuthFileTimestamp = (date: Date) =>
+  `${date.getFullYear()}-${padDatePart(date.getMonth() + 1)}-${padDatePart(date.getDate())} ${padDatePart(date.getHours())}:${padDatePart(date.getMinutes())}:${padDatePart(date.getSeconds())}`;
+
+const parseJsonObjectText = (value: string): Record<string, unknown> => {
+  const parsed = JSON.parse(value) as unknown;
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error('Invalid JSON object');
+  }
+  return parsed as Record<string, unknown>;
 };
 
 export function AuthFilesPage() {
@@ -103,6 +116,8 @@ export function AuthFilesPage() {
   const [pageSizeInput, setPageSizeInput] = useState('9');
   const [viewMode, setViewMode] = useState<'diagram' | 'list'>('list');
   const [sortMode, setSortMode] = useState<AuthFilesSortMode>('default');
+  const [pasteJsonModalOpen, setPasteJsonModalOpen] = useState(false);
+  const [pasteJsonText, setPasteJsonText] = useState('');
   const [batchActionBarVisible, setBatchActionBarVisible] = useState(false);
   const [uiStateHydrated, setUiStateHydrated] = useState(false);
   const floatingBatchActionsRef = useRef<HTMLDivElement>(null);
@@ -125,6 +140,7 @@ export function AuthFilesPage() {
     loadFiles,
     handleUploadClick,
     handleFileChange,
+    uploadJsonText,
     handleDelete,
     handleDeleteAll,
     handleDownload,
@@ -207,10 +223,7 @@ export function AuthFilesPage() {
       if (typeof persisted.disabledOnly === 'boolean') {
         setDisabledOnly(persisted.disabledOnly);
       }
-      if (
-        typeof persistedCompactMode !== 'boolean' &&
-        typeof persisted.compactMode === 'boolean'
-      ) {
+      if (typeof persistedCompactMode !== 'boolean' && typeof persisted.compactMode === 'boolean') {
         setCompactMode(persisted.compactMode);
       }
       if (typeof persisted.search === 'string') {
@@ -226,11 +239,11 @@ export function AuthFilesPage() {
       const regularPageSize =
         typeof persisted.regularPageSize === 'number' && Number.isFinite(persisted.regularPageSize)
           ? clampCardPageSize(persisted.regularPageSize)
-          : legacyPageSize ?? DEFAULT_REGULAR_PAGE_SIZE;
+          : (legacyPageSize ?? DEFAULT_REGULAR_PAGE_SIZE);
       const compactPageSize =
         typeof persisted.compactPageSize === 'number' && Number.isFinite(persisted.compactPageSize)
           ? clampCardPageSize(persisted.compactPageSize)
-          : legacyPageSize ?? DEFAULT_COMPACT_PAGE_SIZE;
+          : (legacyPageSize ?? DEFAULT_COMPACT_PAGE_SIZE);
       setPageSizeByMode({
         regular: regularPageSize,
         compact: compactPageSize,
@@ -334,6 +347,35 @@ export function AuthFilesPage() {
   const handleHeaderRefresh = useCallback(async () => {
     await Promise.all([loadFiles(), loadExcluded(), loadModelAlias()]);
   }, [loadFiles, loadExcluded, loadModelAlias]);
+
+  const closePasteJsonModal = useCallback(() => {
+    if (uploading) return;
+    setPasteJsonModalOpen(false);
+    setPasteJsonText('');
+  }, [uploading]);
+
+  const handlePasteJsonSubmit = useCallback(async () => {
+    const trimmed = pasteJsonText.trim();
+    if (!trimmed) {
+      showNotification(t('auth_files.paste_json_invalid'), 'error');
+      return;
+    }
+
+    let parsed: Record<string, unknown>;
+    try {
+      parsed = parseJsonObjectText(trimmed);
+    } catch {
+      showNotification(t('auth_files.paste_json_invalid'), 'error');
+      return;
+    }
+
+    const fileName = `${formatAuthFileTimestamp(new Date())}.json`;
+    const saved = await uploadJsonText(JSON.stringify(parsed, null, 2), fileName);
+    if (!saved) return;
+
+    setPasteJsonModalOpen(false);
+    setPasteJsonText('');
+  }, [pasteJsonText, showNotification, t, uploadJsonText]);
 
   useHeaderRefresh(handleHeaderRefresh);
 
@@ -680,6 +722,14 @@ export function AuthFilesPage() {
               {t('common.refresh')}
             </Button>
             <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setPasteJsonModalOpen(true)}
+              disabled={disableControls || uploading}
+            >
+              {t('auth_files.paste_json_button')}
+            </Button>
+            <Button
               size="sm"
               onClick={handleUploadClick}
               disabled={disableControls || uploading}
@@ -927,6 +977,39 @@ export function AuthFilesPage() {
         onSave={handlePrefixProxySave}
         onChange={handlePrefixProxyChange}
       />
+
+      <Modal
+        open={pasteJsonModalOpen}
+        title={t('auth_files.paste_json_title')}
+        onClose={closePasteJsonModal}
+        width={720}
+        closeDisabled={uploading}
+        footer={
+          <div className={styles.modalActions}>
+            <Button variant="secondary" onClick={closePasteJsonModal} disabled={uploading}>
+              {t('common.cancel')}
+            </Button>
+            <Button onClick={() => void handlePasteJsonSubmit()} loading={uploading}>
+              {t('common.confirm')}
+            </Button>
+          </div>
+        }
+      >
+        <div className={styles.formGroup}>
+          <label htmlFor="auth-file-paste-json">{t('auth_files.paste_json_label')}</label>
+          <textarea
+            id="auth-file-paste-json"
+            className={`${styles.textarea} ${styles.jsonPasteTextarea}`}
+            value={pasteJsonText}
+            onChange={(event) => setPasteJsonText(event.currentTarget.value)}
+            placeholder={t('auth_files.paste_json_placeholder')}
+            spellCheck={false}
+            autoComplete="off"
+            autoCapitalize="off"
+          />
+          <p className={styles.jsonPasteHint}>{t('auth_files.paste_json_hint')}</p>
+        </div>
+      </Modal>
 
       {batchActionBarVisible && typeof document !== 'undefined'
         ? createPortal(
