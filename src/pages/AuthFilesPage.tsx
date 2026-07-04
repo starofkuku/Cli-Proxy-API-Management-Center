@@ -97,6 +97,11 @@ const parseJsonObjectText = (value: string): Record<string, unknown> => {
   return parsed as Record<string, unknown>;
 };
 
+const isEditablePasteTarget = (target: EventTarget | null) => {
+  if (!(target instanceof HTMLElement)) return false;
+  return Boolean(target.closest('input, textarea, select, [contenteditable]'));
+};
+
 export function AuthFilesPage() {
   const { t } = useTranslation();
   const showNotification = useNotificationStore((state) => state.showNotification);
@@ -395,7 +400,65 @@ export function AuthFilesPage() {
     setPasteJsonFormat('cpa');
   }, [pasteJsonFormat, pasteJsonText, showNotification, t, uploadJsonText]);
 
+  const uploadCpaText = useCallback(
+    async (text: string) => {
+      const trimmed = text.trim();
+      if (!trimmed) {
+        showNotification(t('auth_files.clipboard_empty'), 'error');
+        return false;
+      }
+
+      let parsed: Record<string, unknown>;
+      try {
+        parsed = parseJsonObjectText(trimmed);
+      } catch {
+        showNotification(t('auth_files.paste_json_invalid'), 'error');
+        return false;
+      }
+
+      const fileName = `${formatAuthFileTimestamp(new Date())}.json`;
+      return uploadJsonText(JSON.stringify(parsed, null, 2), fileName);
+    },
+    [showNotification, t, uploadJsonText]
+  );
+
+  const handleClipboardCpaUpload = useCallback(async () => {
+    if (!navigator.clipboard || typeof navigator.clipboard.readText !== 'function') {
+      showNotification(t('auth_files.clipboard_read_failed'), 'error');
+      return;
+    }
+
+    let clipboardText = '';
+    try {
+      clipboardText = await navigator.clipboard.readText();
+    } catch {
+      showNotification(t('auth_files.clipboard_read_failed'), 'error');
+      return;
+    }
+
+    await uploadCpaText(clipboardText);
+  }, [showNotification, t, uploadCpaText]);
+
   useHeaderRefresh(handleHeaderRefresh);
+
+  useEffect(() => {
+    if (!isCurrentLayer || disableControls || uploading) return;
+
+    const handlePagePaste = (event: ClipboardEvent) => {
+      if (isEditablePasteTarget(event.target) || isEditablePasteTarget(document.activeElement)) {
+        return;
+      }
+
+      const text = event.clipboardData?.getData('text/plain') ?? '';
+      if (!text.trim()) return;
+
+      event.preventDefault();
+      void uploadCpaText(text);
+    };
+
+    document.addEventListener('paste', handlePagePaste);
+    return () => document.removeEventListener('paste', handlePagePaste);
+  }, [disableControls, isCurrentLayer, uploadCpaText, uploading]);
 
   useEffect(() => {
     if (!isCurrentLayer) return;
@@ -754,6 +817,14 @@ export function AuthFilesPage() {
               disabled={disableControls || uploading}
             >
               {t('auth_files.paste_json_button')}
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => void handleClipboardCpaUpload()}
+              disabled={disableControls || uploading}
+            >
+              {t('auth_files.paste_clipboard_cpa_button')}
             </Button>
             <Button
               size="sm"
