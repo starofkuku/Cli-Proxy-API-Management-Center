@@ -62,6 +62,9 @@ export interface ModelPrice {
 
 export interface UsageDetail {
   timestamp: string;
+  client_ip?: string;
+  first_response_at?: string;
+  completed_at?: string;
   source: string;
   auth_index: string | number | null;
   latency_ms?: number;
@@ -75,6 +78,7 @@ export interface UsageDetail {
   };
   thinking?: UsageThinking | null;
   failed: boolean;
+  __apiName?: string;
   __modelName?: string;
   __timestampMs?: number;
 }
@@ -641,7 +645,7 @@ export function collectUsageDetails(usageData: unknown): UsageDetail[] {
     return normalized;
   };
 
-  Object.values(apis).forEach((apiEntry) => {
+  Object.entries(apis).forEach(([apiName, apiEntry]) => {
     if (!isRecord(apiEntry)) return;
     const modelsRaw = apiEntry.models;
     const models = isRecord(modelsRaw) ? modelsRaw : null;
@@ -660,6 +664,18 @@ export function collectUsageDetails(usageData: unknown): UsageDetail[] {
         const latencyMs = extractLatencyMs(detailRaw);
         details.push({
           timestamp,
+          client_ip:
+            typeof (detailRaw.client_ip ?? detailRaw.clientIp) === 'string'
+              ? String(detailRaw.client_ip ?? detailRaw.clientIp).trim()
+              : undefined,
+          first_response_at:
+            typeof (detailRaw.first_response_at ?? detailRaw.firstResponseAt) === 'string'
+              ? String(detailRaw.first_response_at ?? detailRaw.firstResponseAt)
+              : undefined,
+          completed_at:
+            typeof (detailRaw.completed_at ?? detailRaw.completedAt) === 'string'
+              ? String(detailRaw.completed_at ?? detailRaw.completedAt)
+              : undefined,
           source: normalizeSource(detailRaw.source),
           auth_index: (detailRaw?.auth_index ??
             detailRaw?.authIndex ??
@@ -669,6 +685,7 @@ export function collectUsageDetails(usageData: unknown): UsageDetail[] {
           tokens: tokensRaw as unknown as UsageDetail['tokens'],
           thinking: normalizeUsageThinking(detailRaw.thinking),
           failed: detailRaw.failed === true,
+          __apiName: apiName,
           __modelName: modelName,
           __timestampMs: Number.isNaN(timestampMs) ? 0 : timestampMs,
         });
@@ -737,6 +754,18 @@ export function collectUsageDetailsWithEndpoint(usageData: unknown): UsageDetail
         const latencyMs = extractLatencyMs(detailRaw);
         details.push({
           timestamp,
+          client_ip:
+            typeof (detailRaw.client_ip ?? detailRaw.clientIp) === 'string'
+              ? String(detailRaw.client_ip ?? detailRaw.clientIp).trim()
+              : undefined,
+          first_response_at:
+            typeof (detailRaw.first_response_at ?? detailRaw.firstResponseAt) === 'string'
+              ? String(detailRaw.first_response_at ?? detailRaw.firstResponseAt)
+              : undefined,
+          completed_at:
+            typeof (detailRaw.completed_at ?? detailRaw.completedAt) === 'string'
+              ? String(detailRaw.completed_at ?? detailRaw.completedAt)
+              : undefined,
           source: normalizeSource(detailRaw.source),
           auth_index: (detailRaw?.auth_index ??
             detailRaw?.authIndex ??
@@ -746,6 +775,7 @@ export function collectUsageDetailsWithEndpoint(usageData: unknown): UsageDetail
           tokens: tokensRaw as unknown as UsageDetail['tokens'],
           thinking: normalizeUsageThinking(detailRaw.thinking),
           failed: detailRaw.failed === true,
+          __apiName: endpoint,
           __modelName: modelName,
           __endpoint: endpoint,
           __endpointMethod: endpointMethod,
