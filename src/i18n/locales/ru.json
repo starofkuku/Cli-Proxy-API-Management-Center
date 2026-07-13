@@ -90,6 +90,8 @@
   },
   "header": {
     "refresh_all": "Обновить всё",
+    "sync_management_panel": "Синхронизировать",
+    "sync_management_panel_running": "Синхронизация",
     "logout": "Выйти"
   },
   "connection": {
@@ -1387,6 +1389,9 @@
     "request_log_updated": "Настройка журналирования запросов обновлена",
     "login_storage_cleared": "Локальные данные входа очищены",
     "data_refreshed": "Данные успешно обновлены",
+    "management_panel_updated": "Панель управления обновлена до последней версии",
+    "management_panel_current": "Панель управления уже обновлена",
+    "management_panel_sync_failed": "Не удалось синхронизировать панель управления",
     "connection_required": "Сначала установите подключение",
     "refresh_failed": "Не удалось обновить",
     "update_failed": "Не удалось обновить",

@@ -90,6 +90,8 @@
   },
   "header": {
     "refresh_all": "刷新全部",
+    "sync_management_panel": "即时同步",
+    "sync_management_panel_running": "同步中",
     "logout": "登出"
   },
   "connection": {
@@ -1409,6 +1411,9 @@
     "request_log_updated": "请求日志设置已更新",
     "login_storage_cleared": "本地登录信息已清理",
     "data_refreshed": "数据刷新成功",
+    "management_panel_updated": "管理面板已同步到最新版本",
+    "management_panel_current": "管理面板已经是最新版本",
+    "management_panel_sync_failed": "管理面板同步失败",
     "connection_required": "请先建立连接",
     "refresh_failed": "刷新失败",
     "update_failed": "更新失败",

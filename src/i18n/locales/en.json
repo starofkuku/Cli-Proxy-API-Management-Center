@@ -90,6 +90,8 @@
   },
   "header": {
     "refresh_all": "Refresh All",
+    "sync_management_panel": "Sync Now",
+    "sync_management_panel_running": "Syncing",
     "logout": "Logout"
   },
   "connection": {
@@ -1409,6 +1411,9 @@
     "request_log_updated": "Request logging setting updated",
     "login_storage_cleared": "Local login data cleared",
     "data_refreshed": "Data refreshed successfully",
+    "management_panel_updated": "Management panel updated to the latest version",
+    "management_panel_current": "Management panel is already up to date",
+    "management_panel_sync_failed": "Management panel sync failed",
     "connection_required": "Please establish connection first",
     "refresh_failed": "Refresh failed",
     "update_failed": "Update failed",

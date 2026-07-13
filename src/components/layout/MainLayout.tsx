@@ -13,7 +13,7 @@ import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/Button';
 import { PageTransition } from '@/components/common/PageTransition';
 import { MainRoutes } from '@/router/MainRoutes';
-import { pluginsApi } from '@/services/api';
+import { pluginsApi, versionApi } from '@/services/api';
 import {
   IconSidebarAuthFiles,
   IconSidebarConfig,
@@ -46,6 +46,7 @@ import {
 import { APIKEY_FUN_DISPLAY_NAME, hasApiKeyFunConfig } from '@/features/providers/sponsor';
 import { triggerHeaderRefresh } from '@/hooks/useHeaderRefresh';
 import { LANGUAGE_LABEL_KEYS, LANGUAGE_ORDER } from '@/utils/constants';
+import { getErrorMessage } from '@/utils/helpers';
 import { isSupportedLanguage } from '@/utils/language';
 import type { Theme } from '@/types';
 
@@ -157,6 +158,13 @@ const headerIcons = {
     <svg {...headerIconProps}>
       <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" />
       <path d="M21 3v5h-5" />
+    </svg>
+  ),
+  syncPanel: (
+    <svg {...headerIconProps}>
+      <path d="M12 3v12" />
+      <path d="m7 10 5 5 5-5" />
+      <path d="M5 21h14" />
     </svg>
   ),
   menu: (
@@ -307,6 +315,7 @@ export function MainLayout() {
   const connectionStatus = useAuthStore((state) => state.connectionStatus);
   const apiBase = useAuthStore((state) => state.apiBase);
   const supportsPlugin = useAuthStore((state) => state.supportsPlugin);
+  const serverRuntimeKind = useAuthStore((state) => state.serverRuntimeKind);
 
   const fetchConfig = useConfigStore((state) => state.fetchConfig);
   const clearCache = useConfigStore((state) => state.clearCache);
@@ -321,6 +330,7 @@ export function MainLayout() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [languageMenuOpen, setLanguageMenuOpen] = useState(false);
   const [themeMenuOpen, setThemeMenuOpen] = useState(false);
+  const [panelSyncing, setPanelSyncing] = useState(false);
   const [pluginResources, setPluginResources] = useState<PluginResourceEntry[]>([]);
   const [expandedPluginResourceIDs, setExpandedPluginResourceIDs] = useState<Set<string>>(
     () => new Set()
@@ -692,6 +702,28 @@ export function MainLayout() {
     showNotification(t('notification.data_refreshed'), 'success');
   };
 
+  const handleSyncManagementPanel = async () => {
+    if (panelSyncing) return;
+    setPanelSyncing(true);
+    try {
+      const result = await versionApi.syncManagementPanel();
+      showNotification(
+        result.updated
+          ? t('notification.management_panel_updated')
+          : t('notification.management_panel_current'),
+        'success'
+      );
+    } catch (error: unknown) {
+      const message = getErrorMessage(error);
+      showNotification(
+        `${t('notification.management_panel_sync_failed')}${message ? `: ${message}` : ''}`,
+        'error'
+      );
+    } finally {
+      setPanelSyncing(false);
+    }
+  };
+
   const togglePluginResourceDrawer = useCallback((drawerID: string) => {
     setExpandedPluginResourceIDs((current) => {
       const next = new Set(current);
@@ -813,6 +845,23 @@ export function MainLayout() {
         </div>
 
         <div className="header-actions floating-actions">
+          {serverRuntimeKind !== 'home' && (
+            <Button
+              className="panel-sync-btn"
+              variant="ghost"
+              size="sm"
+              onClick={handleSyncManagementPanel}
+              loading={panelSyncing}
+              title={t('header.sync_management_panel')}
+            >
+              {!panelSyncing && headerIcons.syncPanel}
+              <span className="panel-sync-label">
+                {panelSyncing
+                  ? t('header.sync_management_panel_running')
+                  : t('header.sync_management_panel')}
+              </span>
+            </Button>
+          )}
           <Button
             variant="ghost"
             size="sm"

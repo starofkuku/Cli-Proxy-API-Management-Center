@@ -6,8 +6,17 @@ import { apiClient } from './client';
 import type { ServerRuntimeKind } from '@/types';
 import { isRecord } from '@/utils/helpers';
 
+export interface ManagementPanelSyncResponse {
+  status: 'updated' | 'up-to-date';
+  updated: boolean;
+  available: boolean;
+  sha256?: string;
+}
+
 export const versionApi = {
   checkLatest: () => apiClient.get<Record<string, unknown>>('/latest-version'),
+
+  syncManagementPanel: () => apiClient.post<ManagementPanelSyncResponse>('/management-panel/sync'),
 
   async detectRuntimeKind(): Promise<ServerRuntimeKind> {
     try {
