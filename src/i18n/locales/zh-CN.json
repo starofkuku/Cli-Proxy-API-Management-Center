@@ -90,8 +90,6 @@
   },
   "header": {
     "refresh_all": "刷新全部",
-    "sync_management_panel": "即时同步",
-    "sync_management_panel_running": "同步中",
     "logout": "登出"
   },
   "connection": {
@@ -1388,6 +1386,8 @@
     "models_empty": "未从 /models 获取到模型数据",
     "models_error": "获取模型列表失败",
     "models_count": "可用模型 {{count}} 个",
+    "management_panel_sync_button": "即时同步",
+    "management_panel_sync_running": "同步中",
     "version_check_button": "检查更新",
     "version_update_available": "有新版本可用：{{version}}",
     "version_is_latest": "当前已是最新版本",

@@ -90,8 +90,6 @@
   },
   "header": {
     "refresh_all": "Обновить всё",
-    "sync_management_panel": "Синхронизировать",
-    "sync_management_panel_running": "Синхронизация",
     "logout": "Выйти"
   },
   "connection": {
@@ -1366,6 +1364,8 @@
     "models_empty": "Сервис /models не вернул модели",
     "models_error": "Не удалось загрузить список моделей",
     "models_count": "Доступно моделей: {{count}}",
+    "management_panel_sync_button": "Синхронизировать",
+    "management_panel_sync_running": "Синхронизация",
     "version_check_button": "Проверить обновления",
     "version_update_available": "Доступно обновление: {{version}}",
     "version_is_latest": "Установлена последняя версия",

@@ -17,6 +17,7 @@ import { useApiKeysForModels } from '@/hooks/useApiKeysForModels';
 import { formatDateTimeValue } from '@/utils/format';
 import { classifyModels } from '@/utils/models';
 import { STORAGE_KEY_AUTH } from '@/utils/constants';
+import { getErrorMessage } from '@/utils/helpers';
 import { INLINE_LOGO_JPEG } from '@/assets/logoInline';
 import iconGemini from '@/assets/icons/gemini.svg';
 import iconClaude from '@/assets/icons/claude.svg';
@@ -94,6 +95,7 @@ export function SystemPage() {
   const [requestLogTouched, setRequestLogTouched] = useState(false);
   const [requestLogSaving, setRequestLogSaving] = useState(false);
   const [checkingVersion, setCheckingVersion] = useState(false);
+  const [panelSyncing, setPanelSyncing] = useState(false);
 
   const versionTapCount = useRef(0);
   const versionTapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -263,6 +265,28 @@ export function SystemPage() {
     }
   }, [auth.serverVersion, showNotification, t]);
 
+  const handleSyncManagementPanel = async () => {
+    if (panelSyncing) return;
+    setPanelSyncing(true);
+    try {
+      const result = await versionApi.syncManagementPanel();
+      showNotification(
+        result.updated
+          ? t('notification.management_panel_updated')
+          : t('notification.management_panel_current'),
+        'success'
+      );
+    } catch (error: unknown) {
+      const message = getErrorMessage(error);
+      showNotification(
+        `${t('notification.management_panel_sync_failed')}${message ? `: ${message}` : ''}`,
+        'error'
+      );
+    } finally {
+      setPanelSyncing(false);
+    }
+  };
+
   useEffect(() => {
     fetchConfig().catch(() => {
       // ignore
@@ -299,16 +323,31 @@ export function SystemPage() {
           </div>
 
           <div className={styles.aboutInfoGrid}>
-            <button
-              type="button"
-              className={`${styles.infoTile} ${styles.tapTile}`}
-              onClick={handleInfoVersionTap}
-            >
+            <div className={`${styles.infoTile} ${styles.tapTile}`} onClick={handleInfoVersionTap}>
               <div className={styles.tileHeader}>
                 <div className={styles.tileLabel}>{t('footer.version')}</div>
+                {auth.serverRuntimeKind !== 'home' && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className={styles.tileAction}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      void handleSyncManagementPanel();
+                    }}
+                    loading={panelSyncing}
+                    title={t('system_info.management_panel_sync_button')}
+                    aria-label={t('system_info.management_panel_sync_button')}
+                  >
+                    {panelSyncing
+                      ? t('system_info.management_panel_sync_running')
+                      : t('system_info.management_panel_sync_button')}
+                  </Button>
+                )}
               </div>
               <div className={styles.tileValue}>{appVersion}</div>
-            </button>
+            </div>
 
             <div className={styles.infoTile}>
               <div className={styles.tileHeader}>

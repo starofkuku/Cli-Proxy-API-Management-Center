@@ -90,8 +90,6 @@
   },
   "header": {
     "refresh_all": "Refresh All",
-    "sync_management_panel": "Sync Now",
-    "sync_management_panel_running": "Syncing",
     "logout": "Logout"
   },
   "connection": {
@@ -1388,6 +1386,8 @@
     "models_empty": "No models returned by /models",
     "models_error": "Failed to load model list",
     "models_count": "{{count}} available models",
+    "management_panel_sync_button": "Sync Now",
+    "management_panel_sync_running": "Syncing",
     "version_check_button": "Check for updates",
     "version_update_available": "An update is available: {{version}}",
     "version_is_latest": "You are on the latest version",

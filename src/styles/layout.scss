@@ -199,22 +199,6 @@
     }
   }
 
-  .header-actions .btn.panel-sync-btn {
-    width: auto;
-    min-width: auto;
-    padding: 0 10px;
-
-    > span {
-      gap: 6px;
-      line-height: 1;
-    }
-
-    .panel-sync-label {
-      line-height: 1;
-      white-space: nowrap;
-    }
-  }
-
   .mobile-menu-btn {
     display: none;
     flex-shrink: 0;
@@ -799,16 +783,6 @@
 
     .mobile-menu-btn {
       display: inline-flex;
-    }
-
-    .header-actions .btn.panel-sync-btn {
-      width: var(--floating-control-size);
-      min-width: var(--floating-control-size);
-      padding: 0;
-
-      .panel-sync-label {
-        display: none;
-      }
     }
 
     .language-menu-popover {
