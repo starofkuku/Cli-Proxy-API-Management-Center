@@ -64,6 +64,7 @@ import {
   type AuthFilesSortMode,
 } from '@/features/authFiles/uiState';
 import { useAuthStore, useNotificationStore, useThemeStore } from '@/stores';
+import { authFilesApi } from '@/services/api';
 import styles from './AuthFilesPage.module.scss';
 
 const easePower3Out = (progress: number) => 1 - (1 - progress) ** 4;
@@ -141,6 +142,7 @@ export function AuthFilesPage() {
   const [pasteJsonFormat, setPasteJsonFormat] = useState<PasteJsonFormat>('cpa');
   const [batchActionBarVisible, setBatchActionBarVisible] = useState(false);
   const [uiStateHydrated, setUiStateHydrated] = useState(false);
+  const [forceRefreshing, setForceRefreshing] = useState(false);
   const floatingBatchActionsRef = useRef<HTMLDivElement>(null);
   const batchActionAnimationRef = useRef<AnimationPlaybackControlsWithThen | null>(null);
   const previousSelectionCountRef = useRef(0);
@@ -154,7 +156,6 @@ export function AuthFilesPage() {
     error,
     uploading,
     deleting,
-    deletingAll,
     statusUpdating,
     batchStatusUpdating,
     fileInputRef,
@@ -163,7 +164,6 @@ export function AuthFilesPage() {
     handleFileChange,
     uploadJsonText,
     handleDelete,
-    handleDeleteAll,
     handleDownload,
     handleStatusToggle,
     toggleSelect,
@@ -384,6 +384,23 @@ export function AuthFilesPage() {
   const handleHeaderRefresh = useCallback(async () => {
     await Promise.all([loadFiles(), loadExcluded(), loadModelAlias()]);
   }, [loadFiles, loadExcluded, loadModelAlias]);
+
+  const handleForceRefresh = useCallback(async () => {
+    setForceRefreshing(true);
+    try {
+      await authFilesApi.refresh();
+      await handleHeaderRefresh();
+      showNotification(t('auth_files.force_refresh_success'), 'success');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : '';
+      showNotification(
+        `${t('auth_files.force_refresh_failed')}${message ? `: ${message}` : ''}`,
+        'error'
+      );
+    } finally {
+      setForceRefreshing(false);
+    }
+  }, [handleHeaderRefresh, showNotification, t]);
 
   const closePasteJsonModal = useCallback(() => {
     if (uploading) return;
@@ -793,22 +810,6 @@ export function AuthFilesPage() {
     </div>
   );
 
-  const deleteAllButtonLabel = (() => {
-    if (enabledOnly || disabledOnly) {
-      return t('auth_files.delete_filtered_result_button');
-    }
-    if (problemOnly) {
-      return normalizedFilter === 'all'
-        ? t('auth_files.delete_problem_button')
-        : t('auth_files.delete_problem_button_with_type', {
-            type: getTypeLabel(t, normalizedFilter),
-          });
-    }
-    return normalizedFilter === 'all'
-      ? t('auth_files.delete_all_button')
-      : `${t('common.delete')} ${getTypeLabel(t, normalizedFilter)}`;
-  })();
-
   return (
     <div className={styles.container}>
       <div className={styles.pageHeader}>
@@ -822,6 +823,16 @@ export function AuthFilesPage() {
           <div className={styles.headerActions}>
             <Button variant="secondary" size="sm" onClick={handleHeaderRefresh} disabled={loading}>
               {t('common.refresh')}
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => void handleForceRefresh()}
+              disabled={disableControls || loading || forceRefreshing}
+              loading={forceRefreshing}
+              title={t('auth_files.force_refresh_hint')}
+            >
+              {t('auth_files.force_refresh_button')}
             </Button>
             <Button
               variant="secondary"
@@ -846,26 +857,6 @@ export function AuthFilesPage() {
               loading={uploading}
             >
               {t('auth_files.upload_button')}
-            </Button>
-            <Button
-              variant="danger"
-              size="sm"
-              onClick={() =>
-                handleDeleteAll({
-                  filter,
-                  problemOnly,
-                  disabledOnly,
-                  enabledOnly,
-                  onResetFilterToAll: () => setFilter('all'),
-                  onResetProblemOnly: () => setStatusFilterMode('all'),
-                  onResetDisabledOnly: () => setStatusFilterMode('all'),
-                  onResetEnabledOnly: () => setStatusFilterMode('all'),
-                })
-              }
-              disabled={disableControls || loading || deletingAll}
-              loading={deletingAll}
-            >
-              {deleteAllButtonLabel}
             </Button>
             <input
               ref={fileInputRef}
