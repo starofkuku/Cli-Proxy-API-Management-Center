@@ -862,6 +862,8 @@ function getNextDirtyFields(
       'errorLogsMaxFiles',
       'usageStatisticsEnabled',
       'redisUsageQueueRetentionSeconds',
+      'managementGzipEnabled',
+      'usageRecentCacheEnabled',
       'pluginsEnabled',
       'passthroughHeaders',
       'disableCooling',
@@ -1057,6 +1059,7 @@ export function useVisualConfig() {
       const tls = asRecord(parsed.tls);
       const remoteManagement = asRecord(parsed['remote-management']);
       const quotaExceeded = asRecord(parsed['quota-exceeded']);
+      const managementPerformance = asRecord(parsed['management-performance']);
       const routing = asRecord(parsed.routing);
       const payload = asRecord(parsed.payload);
       const streaming = asRecord(parsed.streaming);
@@ -1101,6 +1104,10 @@ export function useVisualConfig() {
         usageStatisticsEnabled: Boolean(parsed['usage-statistics-enabled']),
         redisUsageQueueRetentionSeconds: String(
           parsed['redis-usage-queue-retention-seconds'] ?? ''
+        ),
+        managementGzipEnabled: Boolean(managementPerformance?.['gzip-enabled'] ?? true),
+        usageRecentCacheEnabled: Boolean(
+          managementPerformance?.['usage-recent-cache-enabled'] ?? false
         ),
 
         proxyUrl: typeof parsed['proxy-url'] === 'string' ? parsed['proxy-url'] : '',
@@ -1317,6 +1324,22 @@ export function useVisualConfig() {
             ['redis-usage-queue-retention-seconds'],
             values.redisUsageQueueRetentionSeconds
           );
+        }
+
+        const managementPerformanceDirty =
+          dirtyFields.has('managementGzipEnabled') || dirtyFields.has('usageRecentCacheEnabled');
+        if (managementPerformanceDirty) {
+          ensureMapInDoc(doc, ['management-performance']);
+          if (dirtyFields.has('managementGzipEnabled')) {
+            doc.setIn(['management-performance', 'gzip-enabled'], values.managementGzipEnabled);
+          }
+          if (dirtyFields.has('usageRecentCacheEnabled')) {
+            doc.setIn(
+              ['management-performance', 'usage-recent-cache-enabled'],
+              values.usageRecentCacheEnabled
+            );
+          }
+          deleteIfMapEmpty(doc, ['management-performance']);
         }
 
         if (dirtyFields.has('proxyUrl')) setStringInDoc(doc, ['proxy-url'], values.proxyUrl);

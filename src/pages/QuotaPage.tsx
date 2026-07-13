@@ -5,7 +5,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useHeaderRefresh } from '@/hooks/useHeaderRefresh';
-import { useAuthStore } from '@/stores';
+import { useAuthStore, useQuotaPreferencesStore } from '@/stores';
 import { authFilesApi } from '@/services/api';
 import {
   QuotaSection,
@@ -21,12 +21,18 @@ import styles from './QuotaPage.module.scss';
 export function QuotaPage() {
   const { t } = useTranslation();
   const connectionStatus = useAuthStore((state) => state.connectionStatus);
+  const providerVisibility = useQuotaPreferencesStore((state) => state.providerVisibility);
 
   const [files, setFiles] = useState<AuthFileItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
   const disableControls = connectionStatus !== 'connected';
+  const hasClaudeFiles = files.some(CLAUDE_CONFIG.filterFn);
+  const hasAntigravityFiles = files.some(ANTIGRAVITY_CONFIG.filterFn);
+  const hasCodexFiles = files.some(CODEX_CONFIG.filterFn);
+  const hasXaiFiles = files.some(XAI_CONFIG.filterFn);
+  const hasKimiFiles = files.some(KIMI_CONFIG.filterFn);
 
   const loadFiles = useCallback(async () => {
     setLoading(true);
@@ -57,36 +63,46 @@ export function QuotaPage() {
 
       {error && <div className={styles.errorBox}>{error}</div>}
 
-      <QuotaSection
-        config={CLAUDE_CONFIG}
-        files={files}
-        loading={loading}
-        disabled={disableControls}
-      />
-      <QuotaSection
-        config={ANTIGRAVITY_CONFIG}
-        files={files}
-        loading={loading}
-        disabled={disableControls}
-      />
-      <QuotaSection
-        config={CODEX_CONFIG}
-        files={files}
-        loading={loading}
-        disabled={disableControls}
-      />
-      <QuotaSection
-        config={XAI_CONFIG}
-        files={files}
-        loading={loading}
-        disabled={disableControls}
-      />
-      <QuotaSection
-        config={KIMI_CONFIG}
-        files={files}
-        loading={loading}
-        disabled={disableControls}
-      />
+      {hasCodexFiles && (
+        <QuotaSection
+          config={CODEX_CONFIG}
+          files={files}
+          loading={loading}
+          disabled={disableControls}
+        />
+      )}
+      {providerVisibility.claude && hasClaudeFiles && (
+        <QuotaSection
+          config={CLAUDE_CONFIG}
+          files={files}
+          loading={loading}
+          disabled={disableControls}
+        />
+      )}
+      {providerVisibility.antigravity && hasAntigravityFiles && (
+        <QuotaSection
+          config={ANTIGRAVITY_CONFIG}
+          files={files}
+          loading={loading}
+          disabled={disableControls}
+        />
+      )}
+      {providerVisibility.xai && hasXaiFiles && (
+        <QuotaSection
+          config={XAI_CONFIG}
+          files={files}
+          loading={loading}
+          disabled={disableControls}
+        />
+      )}
+      {providerVisibility.kimi && hasKimiFiles && (
+        <QuotaSection
+          config={KIMI_CONFIG}
+          files={files}
+          loading={loading}
+          disabled={disableControls}
+        />
+      )}
     </div>
   );
 }

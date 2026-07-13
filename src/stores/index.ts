@@ -14,3 +14,5 @@ export {
   commitIfQuotaCacheCurrent,
   useQuotaStore,
 } from './useQuotaStore';
+export { useQuotaPreferencesStore } from './useQuotaPreferencesStore';
+export type { OptionalQuotaProvider } from './useQuotaPreferencesStore';

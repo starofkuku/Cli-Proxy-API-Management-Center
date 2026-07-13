@@ -28,6 +28,7 @@ import {
 } from '@/components/ui/icons';
 import { ConfigSection } from '@/components/config/ConfigSection';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
+import { useQuotaPreferencesStore } from '@/stores';
 import type {
   PayloadFilterRule,
   PayloadParamValidationErrorCode,
@@ -189,6 +190,8 @@ export function VisualConfigEditor({
   onChange,
 }: VisualConfigEditorProps) {
   const { t } = useTranslation();
+  const quotaProviderVisibility = useQuotaPreferencesStore((state) => state.providerVisibility);
+  const setQuotaProviderVisible = useQuotaPreferencesStore((state) => state.setProviderVisible);
   const pageTransitionLayer = usePageTransitionLayer();
   const isCurrentLayer = pageTransitionLayer ? pageTransitionLayer.isCurrentLayer : true;
   const isMobile = useMediaQuery('(max-width: 768px)');
@@ -630,6 +633,30 @@ export function VisualConfigEditor({
     </FieldAnchor>
   );
 
+  const managementGzipToggle = (
+    <FieldAnchor fieldId="managementGzipEnabled">
+      <ToggleRow
+        title={t('config_management.visual.sections.system.management_gzip_enabled')}
+        description={t('config_management.visual.sections.system.management_gzip_enabled_desc')}
+        checked={values.managementGzipEnabled}
+        disabled={disabled}
+        onChange={(managementGzipEnabled) => onChange({ managementGzipEnabled })}
+      />
+    </FieldAnchor>
+  );
+
+  const usageRecentCacheToggle = (
+    <FieldAnchor fieldId="usageRecentCacheEnabled">
+      <ToggleRow
+        title={t('config_management.visual.sections.system.usage_recent_cache_enabled')}
+        description={t('config_management.visual.sections.system.usage_recent_cache_enabled_desc')}
+        checked={values.usageRecentCacheEnabled}
+        disabled={disabled}
+        onChange={(usageRecentCacheEnabled) => onChange({ usageRecentCacheEnabled })}
+      />
+    </FieldAnchor>
+  );
+
   const quotaSwitchProjectToggle = (
     <FieldAnchor fieldId="quotaSwitchProject">
       <ToggleRow
@@ -650,6 +677,54 @@ export function VisualConfigEditor({
         checked={values.quotaSwitchPreviewModel}
         disabled={disabled}
         onChange={(quotaSwitchPreviewModel) => onChange({ quotaSwitchPreviewModel })}
+      />
+    </FieldAnchor>
+  );
+
+  const quotaShowClaudeToggle = (
+    <FieldAnchor fieldId="quotaShowClaude">
+      <ToggleRow
+        title={t('config_management.visual.sections.quota.show_claude')}
+        description={t('config_management.visual.sections.quota.provider_visibility_desc')}
+        checked={quotaProviderVisibility.claude}
+        disabled={disabled}
+        onChange={(visible) => setQuotaProviderVisible('claude', visible)}
+      />
+    </FieldAnchor>
+  );
+
+  const quotaShowAntigravityToggle = (
+    <FieldAnchor fieldId="quotaShowAntigravity">
+      <ToggleRow
+        title={t('config_management.visual.sections.quota.show_antigravity')}
+        description={t('config_management.visual.sections.quota.provider_visibility_desc')}
+        checked={quotaProviderVisibility.antigravity}
+        disabled={disabled}
+        onChange={(visible) => setQuotaProviderVisible('antigravity', visible)}
+      />
+    </FieldAnchor>
+  );
+
+  const quotaShowXaiToggle = (
+    <FieldAnchor fieldId="quotaShowXai">
+      <ToggleRow
+        title={t('config_management.visual.sections.quota.show_xai')}
+        description={t('config_management.visual.sections.quota.provider_visibility_desc')}
+        checked={quotaProviderVisibility.xai}
+        disabled={disabled}
+        onChange={(visible) => setQuotaProviderVisible('xai', visible)}
+      />
+    </FieldAnchor>
+  );
+
+  const quotaShowKimiToggle = (
+    <FieldAnchor fieldId="quotaShowKimi">
+      <ToggleRow
+        title={t('config_management.visual.sections.quota.show_kimi')}
+        description={t('config_management.visual.sections.quota.provider_visibility_desc')}
+        checked={quotaProviderVisibility.kimi}
+        disabled={disabled}
+        onChange={(visible) => setQuotaProviderVisible('kimi', visible)}
       />
     </FieldAnchor>
   );
@@ -860,6 +935,12 @@ export function VisualConfigEditor({
             <div className={styles.simpleField}>{proxyUrlField}</div>
             {debugToggle}
             {loggingToFileToggle}
+            {managementGzipToggle}
+            {usageRecentCacheToggle}
+            {quotaShowClaudeToggle}
+            {quotaShowAntigravityToggle}
+            {quotaShowXaiToggle}
+            {quotaShowKimiToggle}
             {quotaSwitchProjectToggle}
             {quotaSwitchPreviewModelToggle}
           </div>
@@ -1346,6 +1427,8 @@ export function VisualConfigEditor({
                       onChange={(usageStatisticsEnabled) => onChange({ usageStatisticsEnabled })}
                     />
                   </FieldAnchor>
+                  {managementGzipToggle}
+                  {usageRecentCacheToggle}
                 </SectionGrid>
               </SectionStack>
             </ConfigSection>
@@ -1361,6 +1444,10 @@ export function VisualConfigEditor({
               description={t('config_management.visual.sections.quota.description')}
             >
               <SectionGrid>
+                {quotaShowClaudeToggle}
+                {quotaShowAntigravityToggle}
+                {quotaShowXaiToggle}
+                {quotaShowKimiToggle}
                 {quotaSwitchProjectToggle}
                 {quotaSwitchPreviewModelToggle}
                 <FieldAnchor fieldId="quotaAntigravityCredits">

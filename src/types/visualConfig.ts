@@ -108,6 +108,8 @@ export type VisualConfigValues = {
   errorLogsMaxFiles: string;
   usageStatisticsEnabled: boolean;
   redisUsageQueueRetentionSeconds: string;
+  managementGzipEnabled: boolean;
+  usageRecentCacheEnabled: boolean;
   proxyUrl: string;
   forceModelPrefix: boolean;
   passthroughHeaders: boolean;
@@ -173,6 +175,8 @@ export const DEFAULT_VISUAL_VALUES: VisualConfigValues = {
   errorLogsMaxFiles: '',
   usageStatisticsEnabled: false,
   redisUsageQueueRetentionSeconds: '',
+  managementGzipEnabled: true,
+  usageRecentCacheEnabled: false,
   proxyUrl: '',
   forceModelPrefix: false,
   passthroughHeaders: false,
