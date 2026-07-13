@@ -1025,7 +1025,7 @@
     min-width: 0;
   }
 
-  @include desktop {
+  @media (min-width: #{$breakpoint-tablet + 1}) {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
@@ -1039,7 +1039,7 @@
     min-width: 0;
   }
 
-  @include desktop {
+  @media (min-width: #{$breakpoint-tablet + 1}) {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }

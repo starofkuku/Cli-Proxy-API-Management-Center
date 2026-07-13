@@ -2,11 +2,11 @@ import { useMemo, type CSSProperties, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Line } from 'react-chartjs-2';
 import {
-  IconDiamond,
   IconDollarSign,
+  IconModelCluster,
+  IconNetwork,
   IconSatellite,
   IconTimer,
-  IconTrendingUp,
 } from '@/components/ui/icons';
 import {
   LATENCY_SOURCE_FIELD,
@@ -162,7 +162,7 @@ export function StatCards({ usage, loading, modelPrices, nowMs, sparklines }: St
     {
       key: 'tokens',
       label: t('usage_stats.total_tokens'),
-      icon: <IconDiamond size={16} />,
+      icon: <IconModelCluster size={16} />,
       accent: '#8b5cf6',
       accentSoft: 'rgba(139, 92, 246, 0.18)',
       accentBorder: 'rgba(139, 92, 246, 0.35)',
@@ -200,7 +200,7 @@ export function StatCards({ usage, loading, modelPrices, nowMs, sparklines }: St
     {
       key: 'tpm',
       label: t('usage_stats.tpm_30m'),
-      icon: <IconTrendingUp size={16} />,
+      icon: <IconNetwork size={16} />,
       accent: '#f97316',
       accentSoft: 'rgba(249, 115, 22, 0.18)',
       accentBorder: 'rgba(249, 115, 22, 0.32)',

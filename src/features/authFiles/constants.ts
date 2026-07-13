@@ -11,6 +11,7 @@ import iconKimiLight from '@/assets/icons/kimi-light.svg';
 import iconQwen from '@/assets/icons/qwen.svg';
 import iconVertex from '@/assets/icons/vertex.svg';
 import type { AuthFileItem } from '@/types';
+import { normalizeOAuthProviderKey } from '@/utils/providerKeys';
 import { parseTimestamp } from '@/utils/timestamp';
 
 export type ThemeColors = { bg: string; text: string; border?: string };
@@ -24,23 +25,36 @@ export type AuthFileModelItem = {
 };
 export type AuthFileIconAsset = string | { light: string; dark: string };
 
-export type QuotaProviderType = 'antigravity' | 'claude' | 'codex' | 'gemini-cli' | 'kimi';
+export type QuotaProviderType = 'antigravity' | 'claude' | 'codex' | 'kimi' | 'xai';
 
 export const QUOTA_PROVIDER_TYPES = new Set<QuotaProviderType>([
   'antigravity',
   'claude',
   'codex',
-  'gemini-cli',
   'kimi',
+  'xai',
 ]);
+
+export const OAUTH_PROVIDER_PRESETS = [
+  'vertex',
+  'aistudio',
+  'antigravity',
+  'xai',
+  'claude',
+  'codex',
+  'kimi',
+];
+
+const OAUTH_PROVIDER_EXCLUDES = new Set(['all', 'unknown', 'empty']);
 
 export const MIN_CARD_PAGE_SIZE = 3;
 export const MAX_CARD_PAGE_SIZE = 30;
-export const AUTH_FILE_REFRESH_WARNING_MS = 24 * 60 * 60 * 1000;
 
 export const INTEGER_STRING_PATTERN = /^[+-]?\d+$/;
 export const TRUTHY_TEXT_VALUES = new Set(['true', '1', 'yes', 'y', 'on']);
 export const FALSY_TEXT_VALUES = new Set(['false', '0', 'no', 'n', 'off']);
+export const AUTH_FILE_WEBSOCKET_PROVIDERS = new Set(['codex', 'xai']);
+export const AUTH_FILE_USING_API_PROVIDERS = new Set(['xai']);
 
 // 标签类型颜色配置 — 基于各提供商 Logo 品牌色调配，确保彼此不重复
 export const TYPE_COLORS: Record<string, TypeColorSet> = {
@@ -58,11 +72,6 @@ export const TYPE_COLORS: Record<string, TypeColorSet> = {
   gemini: {
     light: { bg: '#e3f2fd', text: '#1565c0' },
     dark: { bg: '#0d47a1', text: '#64b5f6' },
-  },
-  // Gemini-CLI: 同 Gemini 图标，用更深的海军蓝区分
-  'gemini-cli': {
-    light: { bg: '#e0e8ff', text: '#1e4fa3' },
-    dark: { bg: '#1c3f73', text: '#a8c7ff' },
   },
   // AI Studio: 使用 Gemini 图标，中性灰标签
   aistudio: {
@@ -115,7 +124,6 @@ export const AUTH_FILE_ICONS: Record<string, AuthFileIconAsset> = {
   claude: iconClaude,
   codex: iconCodex,
   gemini: iconGemini,
-  'gemini-cli': iconGemini,
   xai: { light: iconGrok, dark: iconGrokDark },
   iflow: iconIflow,
   kimi: { light: iconKimiLight, dark: iconKimiDark },
@@ -136,10 +144,23 @@ export const resolveQuotaErrorMessage = (
   return fallback;
 };
 
-export const normalizeProviderKey = (value: string) => {
-  const key = value.trim().toLowerCase().replace(/_/g, '-');
-  if (key === 'x-ai' || key === 'grok') return 'xai';
-  return key;
+export const normalizeProviderKey = normalizeOAuthProviderKey;
+
+export const buildOAuthProviderOptions = (values: Iterable<unknown>): string[] => {
+  const extraProviders = new Set<string>();
+
+  Array.from(values).forEach((value) => {
+    const key = normalizeProviderKey(String(value ?? ''));
+    if (!key || OAUTH_PROVIDER_EXCLUDES.has(key)) return;
+    extraProviders.add(key);
+  });
+
+  const baseSet = new Set(OAUTH_PROVIDER_PRESETS.map((value) => normalizeProviderKey(value)));
+  const extraList = Array.from(extraProviders)
+    .filter((value) => !baseSet.has(value))
+    .sort((a, b) => a.localeCompare(b));
+
+  return [...OAUTH_PROVIDER_PRESETS, ...extraList];
 };
 
 export const getAuthFileStatusMessage = (file: AuthFileItem): string => {
@@ -188,26 +209,6 @@ export const parsePriorityValue = (value: unknown): number | undefined => {
   return Number.isSafeInteger(parsed) ? parsed : undefined;
 };
 
-export const normalizeExcludedModels = (value: unknown): string[] => {
-  if (!Array.isArray(value)) return [];
-
-  const seen = new Set<string>();
-  const normalized: string[] = [];
-  value.forEach((entry) => {
-    const model = String(entry ?? '')
-      .trim()
-      .toLowerCase();
-    if (!model || seen.has(model)) return;
-    seen.add(model);
-    normalized.push(model);
-  });
-
-  return normalized.sort((a, b) => a.localeCompare(b));
-};
-
-export const parseExcludedModelsText = (value: string): string[] =>
-  normalizeExcludedModels(value.split(/[\n,]+/));
-
 export const parseDisableCoolingValue = (value: unknown): boolean | undefined => {
   if (typeof value === 'boolean') return value;
   if (typeof value === 'number' && Number.isFinite(value)) return value !== 0;
@@ -220,10 +221,13 @@ export const parseDisableCoolingValue = (value: unknown): boolean | undefined =>
   return undefined;
 };
 
-export const readCodexAuthFileWebsockets = (value: Record<string, unknown>): boolean =>
-  parseDisableCoolingValue(value.websockets) ?? false;
+export const supportsAuthFileWebsockets = (providerKey: string): boolean =>
+  AUTH_FILE_WEBSOCKET_PROVIDERS.has(normalizeProviderKey(providerKey));
 
-export const applyCodexAuthFileWebsockets = (
+export const readAuthFileWebsockets = (value: Record<string, unknown>): boolean =>
+  parseDisableCoolingValue(value.websockets ?? value.websocket) ?? false;
+
+export const applyAuthFileWebsockets = (
   value: Record<string, unknown>,
   websockets: boolean
 ): Record<string, unknown> => {
@@ -232,6 +236,17 @@ export const applyCodexAuthFileWebsockets = (
   next.websockets = websockets;
   return next;
 };
+
+export const supportsAuthFileUsingApi = (providerKey: string): boolean =>
+  AUTH_FILE_USING_API_PROVIDERS.has(normalizeProviderKey(providerKey));
+
+export const readAuthFileUsingApi = (value: Record<string, unknown>): boolean =>
+  parseDisableCoolingValue(value.using_api) ?? false;
+
+export const applyAuthFileUsingApi = (
+  value: Record<string, unknown>,
+  usingApi: boolean
+): Record<string, unknown> => ({ ...value, using_api: usingApi });
 
 export function isRuntimeOnlyAuthFile(file: AuthFileItem): boolean {
   const raw = file['runtime_only'] ?? file.runtimeOnly;
@@ -247,7 +262,7 @@ export const formatModified = (item: AuthFileItem): string => {
   const date =
     Number.isFinite(asNumber) && !Number.isNaN(asNumber)
       ? new Date(asNumber < 1e12 ? asNumber * 1000 : asNumber)
-      : parseTimestamp(raw) ?? new Date(String(raw));
+      : (parseTimestamp(raw) ?? new Date(String(raw)));
   return Number.isNaN(date.getTime()) ? '-' : date.toLocaleString();
 };
 

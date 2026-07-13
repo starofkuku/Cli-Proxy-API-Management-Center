@@ -230,7 +230,14 @@ const parseInputDocuments = (text: string): SessionLikeObject[] => {
   try {
     parsed = JSON.parse(text) as unknown;
   } catch (error) {
-    throw new Error(`JSON 解析失败：${error instanceof Error ? error.message : String(error)}`);
+    const ErrorWithCause = Error as new (
+      message?: string,
+      options?: { cause?: unknown }
+    ) => Error;
+    throw new ErrorWithCause(
+      `JSON 解析失败：${error instanceof Error ? error.message : String(error)}`,
+      { cause: error }
+    );
   }
 
   return collectSessionLikeObjects(parsed);

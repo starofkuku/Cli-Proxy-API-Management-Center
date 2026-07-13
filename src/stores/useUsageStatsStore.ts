@@ -129,7 +129,7 @@ export const useUsageStatsStore = create<UsageStatsState>((set, get) => ({
           error: message,
           scopeKey,
         });
-        throw new Error(message);
+        throw error;
       } finally {
         if (inFlightUsageRequest?.id === requestId) {
           inFlightUsageRequest = null;

@@ -5,6 +5,7 @@
 import { apiClient } from './client';
 import type { AuthFilesResponse } from '@/types/authFile';
 import type { OAuthModelAliasEntry } from '@/types';
+import { normalizeOAuthProviderKey } from '@/utils/providerKeys';
 import { parseTimestampMs } from '@/utils/timestamp';
 
 type StatusError = { status?: number };
@@ -15,6 +16,8 @@ export type AuthFileFieldsPatch = {
   proxy_url?: string;
   headers?: Record<string, string>;
   priority?: number;
+  websockets?: boolean;
+  using_api?: boolean;
   note?: string;
 };
 type AuthFileBatchFailure = { name: string; error: string };
@@ -42,8 +45,6 @@ type AuthFileBatchDeleteResult = {
   files: string[];
   failed: AuthFileBatchFailure[];
 };
-
-export const AUTH_FILE_INVALID_JSON_OBJECT_ERROR = 'AUTH_FILE_INVALID_JSON_OBJECT';
 
 const getStatusCode = (err: unknown): number | undefined => {
   if (!err || typeof err !== 'object') return undefined;
@@ -90,51 +91,19 @@ const normalizeBatchFailures = (value: unknown): AuthFileBatchFailure[] => {
   }, []);
 };
 
-const deriveSuccessfulFileNames = (requestedNames: string[], failed: AuthFileBatchFailure[]): string[] => {
-  const failedNames = new Set(
-    failed
-      .map((entry) => entry.name.trim())
-      .filter(Boolean)
-  );
-
-  if (failedNames.size === 0) {
-    return [...requestedNames];
-  }
-
-  return requestedNames.filter((name) => !failedNames.has(name));
-};
-
 const normalizeBatchUploadResponse = (
   payload: AuthFileBatchUploadResponse | undefined,
   requestedNames: string[]
 ): AuthFileBatchUploadResult => {
   const failed = normalizeBatchFailures(payload?.failed);
-  const uploadedFilesFromPayload = normalizeBatchFileNames(payload?.files);
-  const uploaded =
-    typeof payload?.uploaded === 'number'
-      ? payload.uploaded
-      : uploadedFilesFromPayload.length > 0
-        ? uploadedFilesFromPayload.length
-        : requestedNames.length === 1 && failed.length === 0
-          ? 1
-          : 0;
-
-  let uploadedFiles = uploadedFilesFromPayload;
-  if (uploadedFiles.length === 0 && uploaded > 0) {
-    if (failed.length === 0 && uploaded === requestedNames.length) {
-      uploadedFiles = [...requestedNames];
-    } else {
-      const derivedNames = deriveSuccessfulFileNames(requestedNames, failed);
-      if (derivedNames.length === uploaded) {
-        uploadedFiles = derivedNames;
-      }
-    }
-  }
-
+  const filesFromPayload = normalizeBatchFileNames(payload?.files);
+  // Backend single-file success path returns only {status:"ok"} (auth_files.go:680).
+  // Derive count + names from the request when no failures and counts are absent.
+  const inferFromRequest = payload?.uploaded === undefined && failed.length === 0;
   return {
-    status: typeof payload?.status === 'string' ? payload.status : failed.length > 0 ? 'partial' : 'ok',
-    uploaded,
-    files: uploadedFiles,
+    status: payload?.status ?? (failed.length > 0 ? 'partial' : 'ok'),
+    uploaded: payload?.uploaded ?? (inferFromRequest ? requestedNames.length : 0),
+    files: filesFromPayload.length ? filesFromPayload : inferFromRequest ? [...requestedNames] : [],
     failed,
   };
 };
@@ -144,32 +113,13 @@ const normalizeBatchDeleteResponse = (
   requestedNames: string[]
 ): AuthFileBatchDeleteResult => {
   const failed = normalizeBatchFailures(payload?.failed);
-  const deletedFilesFromPayload = normalizeBatchFileNames(payload?.files);
-  const deleted =
-    typeof payload?.deleted === 'number'
-      ? payload.deleted
-      : deletedFilesFromPayload.length > 0
-        ? deletedFilesFromPayload.length
-        : requestedNames.length === 1 && failed.length === 0
-          ? 1
-          : 0;
-
-  let deletedFiles = deletedFilesFromPayload;
-  if (deletedFiles.length === 0 && deleted > 0) {
-    if (failed.length === 0 && deleted === requestedNames.length) {
-      deletedFiles = [...requestedNames];
-    } else {
-      const derivedNames = deriveSuccessfulFileNames(requestedNames, failed);
-      if (derivedNames.length === deleted) {
-        deletedFiles = derivedNames;
-      }
-    }
-  }
-
+  const filesFromPayload = normalizeBatchFileNames(payload?.files);
+  // Backend single-name delete returns only {status:"ok"} (auth_files.go:794).
+  const inferFromRequest = payload?.deleted === undefined && failed.length === 0;
   return {
-    status: typeof payload?.status === 'string' ? payload.status : failed.length > 0 ? 'partial' : 'ok',
-    deleted,
-    files: deletedFiles,
+    status: payload?.status ?? (failed.length > 0 ? 'partial' : 'ok'),
+    deleted: payload?.deleted ?? (inferFromRequest ? requestedNames.length : 0),
+    files: filesFromPayload.length ? filesFromPayload : inferFromRequest ? [...requestedNames] : [],
     failed,
   };
 };
@@ -180,7 +130,7 @@ const readTextField = (entry: AuthFileEntry, key: string): string => {
 };
 
 const readDateField = (entry: AuthFileEntry): number => {
-  const candidates = [entry['modtime'], entry.modified, entry['updated_at'], entry['last_refresh']];
+  const candidates = [entry['modtime'], entry['updated_at'], entry['last_refresh']];
 
   for (const value of candidates) {
     if (typeof value === 'number' && Number.isFinite(value)) {
@@ -203,12 +153,7 @@ const readDateField = (entry: AuthFileEntry): number => {
   return 0;
 };
 
-const isRuntimeOnlyEntry = (entry: AuthFileEntry): boolean => {
-  const value = entry['runtime_only'] ?? entry.runtimeOnly;
-  if (typeof value === 'boolean') return value;
-  if (typeof value === 'string') return value.trim().toLowerCase() === 'true';
-  return false;
-};
+const isRuntimeOnlyEntry = (entry: AuthFileEntry): boolean => entry['runtime_only'] === true;
 
 const hasMeaningfulValue = (value: unknown): boolean => {
   if (value == null) return false;
@@ -290,31 +235,6 @@ const dedupeAuthFilesResponse = (payload: AuthFilesResponse): AuthFilesResponse 
   };
 };
 
-const parseAuthFileJsonObject = (rawText: string): Record<string, unknown> => {
-  const trimmed = rawText.trim();
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(trimmed) as unknown;
-  } catch {
-    throw new Error(AUTH_FILE_INVALID_JSON_OBJECT_ERROR);
-  }
-
-  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    throw new Error(AUTH_FILE_INVALID_JSON_OBJECT_ERROR);
-  }
-
-  return { ...(parsed as Record<string, unknown>) };
-};
-
-const saveAuthFileText = async (name: string, text: string) => {
-  const file = new File([text], name, { type: 'application/json' });
-  await authFilesApi.upload(file);
-};
-
-export const isAuthFileInvalidJsonObjectError = (err: unknown): boolean =>
-  err instanceof Error && err.message === AUTH_FILE_INVALID_JSON_OBJECT_ERROR;
-
 const normalizeOauthExcludedModels = (payload: unknown): Record<string, string[]> => {
   if (!payload || typeof payload !== 'object') return {};
 
@@ -325,9 +245,7 @@ const normalizeOauthExcludedModels = (payload: unknown): Record<string, string[]
   const result: Record<string, string[]> = {};
 
   Object.entries(source as Record<string, unknown>).forEach(([provider, models]) => {
-    const key = String(provider ?? '')
-      .trim()
-      .toLowerCase();
+    const key = normalizeOAuthProviderKey(String(provider ?? ''));
     if (!key) return;
 
     const rawList = Array.isArray(models)
@@ -336,8 +254,8 @@ const normalizeOauthExcludedModels = (payload: unknown): Record<string, string[]
         ? models.split(/[\n,]+/)
         : [];
 
-    const seen = new Set<string>();
-    const normalized: string[] = [];
+    const normalized = result[key] ?? [];
+    const seen = new Set(normalized.map((item) => item.toLowerCase()));
     rawList.forEach((item) => {
       const trimmed = String(item ?? '').trim();
       if (!trimmed) return;
@@ -353,44 +271,48 @@ const normalizeOauthExcludedModels = (payload: unknown): Record<string, string[]
   return result;
 };
 
-const normalizeOauthModelAlias = (payload: unknown): Record<string, OAuthModelAliasEntry[]> => {
+export const normalizeOauthModelAlias = (
+  payload: unknown
+): Record<string, OAuthModelAliasEntry[]> => {
   if (!payload || typeof payload !== 'object') return {};
 
   const record = payload as Record<string, unknown>;
-  const source =
-    record['oauth-model-alias'] ??
-    record.items ??
-    payload;
+  const source = record['oauth-model-alias'] ?? record.items ?? payload;
   if (!source || typeof source !== 'object') return {};
 
   const result: Record<string, OAuthModelAliasEntry[]> = {};
 
   Object.entries(source as Record<string, unknown>).forEach(([channel, mappings]) => {
-    const key = String(channel ?? '')
-      .trim()
-      .toLowerCase();
+    const key = normalizeOAuthProviderKey(String(channel ?? ''));
     if (!key) return;
     if (!Array.isArray(mappings)) return;
 
-	    const seen = new Set<string>();
-	    const normalized = mappings
-	      .map((item) => {
-	        if (!item || typeof item !== 'object') return null;
-	        const entry = item as Record<string, unknown>;
-	        const name = String(entry.name ?? entry.id ?? entry.model ?? '').trim();
-	        const alias = String(entry.alias ?? '').trim();
-	        if (!name || !alias) return null;
-	        const fork = entry.fork === true;
-	        return fork ? { name, alias, fork } : { name, alias };
-	      })
+    const normalized = result[key] ?? [];
+    const seenAlias = new Set(normalized.map((entry) => entry.alias.toLowerCase()));
+    mappings
+      .map((item) => {
+        if (!item || typeof item !== 'object') return null;
+        const entry = item as Record<string, unknown>;
+        const name = String(entry.name ?? entry.id ?? entry.model ?? '').trim();
+        const alias = String(entry.alias ?? '').trim();
+        if (!name || !alias) return null;
+        const fork = entry.fork === true;
+        const forceMappingValue = entry['force-mapping'] ?? entry.forceMapping;
+        const normalizedEntry: OAuthModelAliasEntry = { name, alias };
+        if (fork) normalizedEntry.fork = true;
+        if (typeof forceMappingValue === 'boolean') {
+          normalizedEntry.forceMapping = forceMappingValue;
+        }
+        return normalizedEntry;
+      })
       .filter(Boolean)
-      .filter((entry) => {
+      .forEach((entry) => {
         const aliasEntry = entry as OAuthModelAliasEntry;
-        const dedupeKey = `${aliasEntry.name.toLowerCase()}::${aliasEntry.alias.toLowerCase()}::${aliasEntry.fork ? '1' : '0'}`;
-        if (seen.has(dedupeKey)) return false;
-        seen.add(dedupeKey);
-        return true;
-      }) as OAuthModelAliasEntry[];
+        const aliasKey = aliasEntry.alias.toLowerCase();
+        if (seenAlias.has(aliasKey)) return;
+        seenAlias.add(aliasKey);
+        normalized.push(aliasEntry);
+      });
 
     if (normalized.length) {
       result[key] = normalized;
@@ -399,6 +321,21 @@ const normalizeOauthModelAlias = (payload: unknown): Record<string, OAuthModelAl
 
   return result;
 };
+
+export const serializeOauthModelAliases = (
+  aliases: OAuthModelAliasEntry[]
+): Array<Record<string, unknown>> =>
+  aliases.map((entry) => {
+    const payload: Record<string, unknown> = {
+      name: entry.name,
+      alias: entry.alias,
+    };
+    if (entry.fork) payload.fork = true;
+    if (typeof entry.forceMapping === 'boolean') {
+      payload['force-mapping'] = entry.forceMapping;
+    }
+    return payload;
+  });
 
 const OAUTH_MODEL_ALIAS_ENDPOINT = '/oauth-model-alias';
 
@@ -425,8 +362,6 @@ export const authFilesApi = {
     return normalizeBatchUploadResponse(payload, requestedNames);
   },
 
-  upload: (file: File) => authFilesApi.uploadFiles([file]),
-
   deleteFiles: async (names: string[]): Promise<AuthFileBatchDeleteResult> => {
     const requestedNames = normalizeRequestedAuthFileNames(names);
     if (requestedNames.length === 0) {
@@ -444,22 +379,15 @@ export const authFilesApi = {
   deleteAll: () => apiClient.delete('/auth-files', { params: { all: true } }),
 
   downloadText: async (name: string): Promise<string> => {
-    const response = await apiClient.getRaw(`/auth-files/download?name=${encodeURIComponent(name)}`, {
-      responseType: 'blob'
-    });
+    const response = await apiClient.getRaw(
+      `/auth-files/download?name=${encodeURIComponent(name)}`,
+      {
+        responseType: 'blob',
+      }
+    );
     const blob = response.data as Blob;
     return blob.text();
   },
-
-  async downloadJsonObject(name: string): Promise<Record<string, unknown>> {
-    const rawText = await authFilesApi.downloadText(name);
-    return parseAuthFileJsonObject(rawText);
-  },
-
-  saveText: (name: string, text: string) => saveAuthFileText(name, text),
-
-  saveJsonObject: (name: string, json: Record<string, unknown>) =>
-    saveAuthFileText(name, JSON.stringify(json)),
 
   // OAuth 排除模型
   async getOauthExcludedModels(): Promise<Record<string, string[]>> {
@@ -468,10 +396,15 @@ export const authFilesApi = {
   },
 
   saveOauthExcludedModels: (provider: string, models: string[]) =>
-    apiClient.patch('/oauth-excluded-models', { provider, models }),
+    apiClient.patch('/oauth-excluded-models', {
+      provider: normalizeOAuthProviderKey(provider),
+      models,
+    }),
 
   deleteOauthExcludedEntry: (provider: string) =>
-    apiClient.delete(`/oauth-excluded-models?provider=${encodeURIComponent(provider)}`),
+    apiClient.delete(
+      `/oauth-excluded-models?provider=${encodeURIComponent(normalizeOAuthProviderKey(provider))}`
+    ),
 
   replaceOauthExcludedModels: (map: Record<string, string[]>) =>
     apiClient.put('/oauth-excluded-models', normalizeOauthExcludedModels(map)),
@@ -483,29 +416,36 @@ export const authFilesApi = {
   },
 
   saveOauthModelAlias: async (channel: string, aliases: OAuthModelAliasEntry[]) => {
-    const normalizedChannel = String(channel ?? '')
-      .trim()
-      .toLowerCase();
-    const normalizedAliases = normalizeOauthModelAlias({ [normalizedChannel]: aliases })[normalizedChannel] ?? [];
-    await apiClient.patch(OAUTH_MODEL_ALIAS_ENDPOINT, { channel: normalizedChannel, aliases: normalizedAliases });
+    const normalizedChannel = normalizeOAuthProviderKey(String(channel ?? ''));
+    const normalizedAliases =
+      normalizeOauthModelAlias({ [normalizedChannel]: aliases })[normalizedChannel] ?? [];
+    await apiClient.patch(OAUTH_MODEL_ALIAS_ENDPOINT, {
+      channel: normalizedChannel,
+      aliases: serializeOauthModelAliases(normalizedAliases),
+    });
   },
 
   deleteOauthModelAlias: async (channel: string) => {
-    const normalizedChannel = String(channel ?? '')
-      .trim()
-      .toLowerCase();
+    const normalizedChannel = normalizeOAuthProviderKey(String(channel ?? ''));
 
     try {
-      await apiClient.patch(OAUTH_MODEL_ALIAS_ENDPOINT, { channel: normalizedChannel, aliases: [] });
+      await apiClient.patch(OAUTH_MODEL_ALIAS_ENDPOINT, {
+        channel: normalizedChannel,
+        aliases: [],
+      });
     } catch (err: unknown) {
       const status = getStatusCode(err);
       if (status !== 405) throw err;
-      await apiClient.delete(`${OAUTH_MODEL_ALIAS_ENDPOINT}?channel=${encodeURIComponent(normalizedChannel)}`);
+      await apiClient.delete(
+        `${OAUTH_MODEL_ALIAS_ENDPOINT}?channel=${encodeURIComponent(normalizedChannel)}`
+      );
     }
   },
 
   // 获取认证凭证支持的模型
-  async getModelsForAuthFile(name: string): Promise<{ id: string; display_name?: string; type?: string; owned_by?: string }[]> {
+  async getModelsForAuthFile(
+    name: string
+  ): Promise<{ id: string; display_name?: string; type?: string; owned_by?: string }[]> {
     const data = await apiClient.get<Record<string, unknown>>(
       `/auth-files/models?name=${encodeURIComponent(name)}`
     );
@@ -516,8 +456,10 @@ export const authFilesApi = {
   },
 
   // 获取指定 channel 的模型定义
-  async getModelDefinitions(channel: string): Promise<{ id: string; display_name?: string; type?: string; owned_by?: string }[]> {
-    const normalizedChannel = String(channel ?? '').trim().toLowerCase();
+  async getModelDefinitions(
+    channel: string
+  ): Promise<{ id: string; display_name?: string; type?: string; owned_by?: string }[]> {
+    const normalizedChannel = normalizeOAuthProviderKey(String(channel ?? ''));
     if (!normalizedChannel) return [];
     const data = await apiClient.get<Record<string, unknown>>(
       `/model-definitions/${encodeURIComponent(normalizedChannel)}`
@@ -526,5 +468,5 @@ export const authFilesApi = {
     return Array.isArray(models)
       ? (models as { id: string; display_name?: string; type?: string; owned_by?: string }[])
       : [];
-  }
+  },
 };
