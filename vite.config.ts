@@ -47,6 +47,7 @@ export default defineConfig({
     __APP_VERSION__: JSON.stringify(getVersion())
   },
   resolve: {
+    dedupe: ['react', 'react-dom'],
     alias: {
       '@': path.resolve(__dirname, './src')
     }
