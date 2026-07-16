@@ -73,6 +73,7 @@ const BATCH_BAR_BASE_TRANSFORM = 'translateX(-50%)';
 const BATCH_BAR_HIDDEN_TRANSFORM = 'translateX(-50%) translateY(56px)';
 const DEFAULT_REGULAR_PAGE_SIZE = 9;
 const DEFAULT_COMPACT_PAGE_SIZE = 12;
+const MAX_AUTH_ARCHIVE_SIZE = 100 * 1024 * 1024;
 
 type PasteJsonFormat = 'cpa' | 'gptSession';
 
@@ -143,6 +144,8 @@ export function AuthFilesPage() {
   const [batchActionBarVisible, setBatchActionBarVisible] = useState(false);
   const [uiStateHydrated, setUiStateHydrated] = useState(false);
   const [forceRefreshing, setForceRefreshing] = useState(false);
+  const [archiveUploading, setArchiveUploading] = useState(false);
+  const archiveInputRef = useRef<HTMLInputElement | null>(null);
   const floatingBatchActionsRef = useRef<HTMLDivElement>(null);
   const batchActionAnimationRef = useRef<AnimationPlaybackControlsWithThen | null>(null);
   const previousSelectionCountRef = useRef(0);
@@ -401,6 +404,49 @@ export function AuthFilesPage() {
       setForceRefreshing(false);
     }
   }, [handleHeaderRefresh, showNotification, t]);
+
+  const handleArchiveUpload = useCallback(
+    async (event: ChangeEvent<HTMLInputElement>) => {
+      const input = event.target;
+      const file = input.files?.[0];
+      if (!file) return;
+      if (file.size > MAX_AUTH_ARCHIVE_SIZE) {
+        showNotification(t('auth_files.archive_upload_too_large'), 'error');
+        input.value = '';
+        return;
+      }
+
+      setArchiveUploading(true);
+      try {
+        const result = await authFilesApi.uploadArchive(file);
+        showNotification(
+          t('auth_files.archive_upload_result', {
+            found: result.jsonFound,
+            uploaded: result.uploaded,
+            failed: result.failedCount,
+          }),
+          result.failedCount > 0 ? 'warning' : 'success'
+        );
+        if (result.failed.length > 0) {
+          const details = result.failed
+            .slice(0, 5)
+            .map((item) => `${item.name}: ${item.error}`)
+            .join('; ');
+          showNotification(`${t('auth_files.archive_upload_failed')}: ${details}`, 'error');
+        }
+        if (result.uploaded > 0) {
+          await loadFiles();
+        }
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : t('common.unknown_error');
+        showNotification(`${t('auth_files.archive_upload_failed')}: ${message}`, 'error');
+      } finally {
+        setArchiveUploading(false);
+        input.value = '';
+      }
+    },
+    [loadFiles, showNotification, t]
+  );
 
   const closePasteJsonModal = useCallback(() => {
     if (uploading) return;
@@ -851,13 +897,30 @@ export function AuthFilesPage() {
               {t('auth_files.paste_clipboard_cpa_button')}
             </Button>
             <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => archiveInputRef.current?.click()}
+              disabled={disableControls || uploading || archiveUploading}
+              loading={archiveUploading}
+              title={t('auth_files.archive_upload_hint')}
+            >
+              {t('auth_files.archive_upload_button')}
+            </Button>
+            <Button
               size="sm"
               onClick={handleUploadClick}
-              disabled={disableControls || uploading}
+              disabled={disableControls || uploading || archiveUploading}
               loading={uploading}
             >
               {t('auth_files.upload_button')}
             </Button>
+            <input
+              ref={archiveInputRef}
+              type="file"
+              accept=".zip,.tar,.tar.gz,.tgz,.gz,application/zip,application/gzip,application/x-tar"
+              style={{ display: 'none' }}
+              onChange={(event) => void handleArchiveUpload(event)}
+            />
             <input
               ref={fileInputRef}
               type="file"

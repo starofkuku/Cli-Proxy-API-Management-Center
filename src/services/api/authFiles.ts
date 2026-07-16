@@ -39,6 +39,28 @@ type AuthFileBatchUploadResult = {
   files: string[];
   failed: AuthFileBatchFailure[];
 };
+type AuthFileArchiveUploadResponse = {
+  status?: string;
+  archives?: number;
+  json_found?: number;
+  uploaded?: number;
+  failed_count?: number;
+  skipped?: number;
+  expanded_bytes?: number;
+  files?: unknown;
+  failed?: unknown;
+};
+export type AuthFileArchiveUploadResult = {
+  status: string;
+  archives: number;
+  jsonFound: number;
+  uploaded: number;
+  failedCount: number;
+  skipped: number;
+  expandedBytes: number;
+  files: string[];
+  failed: AuthFileBatchFailure[];
+};
 type AuthFileBatchDeleteResult = {
   status: string;
   deleted: number;
@@ -362,6 +384,27 @@ export const authFilesApi = {
     });
     const payload = await apiClient.postForm<AuthFileBatchUploadResponse>('/auth-files', formData);
     return normalizeBatchUploadResponse(payload, requestedNames);
+  },
+
+  uploadArchive: async (file: File): Promise<AuthFileArchiveUploadResult> => {
+    const formData = new FormData();
+    formData.append('file', file, file.name);
+    const payload = await apiClient.postForm<AuthFileArchiveUploadResponse>(
+      '/auth-files/archive',
+      formData
+    );
+    const failed = normalizeBatchFailures(payload?.failed);
+    return {
+      status: payload?.status ?? (failed.length > 0 ? 'partial' : 'ok'),
+      archives: Number(payload?.archives ?? 0),
+      jsonFound: Number(payload?.json_found ?? 0),
+      uploaded: Number(payload?.uploaded ?? 0),
+      failedCount: Number(payload?.failed_count ?? failed.length),
+      skipped: Number(payload?.skipped ?? 0),
+      expandedBytes: Number(payload?.expanded_bytes ?? 0),
+      files: normalizeBatchFileNames(payload?.files),
+      failed,
+    };
   },
 
   deleteFiles: async (names: string[]): Promise<AuthFileBatchDeleteResult> => {
