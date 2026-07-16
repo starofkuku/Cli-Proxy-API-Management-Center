@@ -175,6 +175,7 @@ export function AuthFilesPage() {
     uploadJsonText,
     handleDelete,
     handleDownload,
+    handleDownloadSub2API,
     handleStatusToggle,
     toggleSelect,
     selectAllVisible,
@@ -1184,6 +1185,7 @@ export function AuthFilesPage() {
                         statusBarCache={statusBarCache}
                         onShowModels={showModels}
                         onDownload={handleDownload}
+                        onDownloadSub2API={handleDownloadSub2API}
                         onOpenPrefixProxyEditor={openPrefixProxyEditor}
                         onDelete={handleDelete}
                         onToggleStatus={handleStatusToggle}

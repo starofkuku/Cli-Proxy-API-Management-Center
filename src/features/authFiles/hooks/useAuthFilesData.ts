@@ -7,6 +7,7 @@ import type { AuthFileItem } from '@/types';
 import { formatFileSize } from '@/utils/format';
 import { MAX_AUTH_FILE_SIZE } from '@/utils/constants';
 import { downloadBlob } from '@/utils/download';
+import { convertCodexCredentialText } from '@/utils/codexCredentialFormat';
 import {
   getTypeLabel,
   hasAuthFileStatusMessage,
@@ -44,6 +45,7 @@ export type UseAuthFilesDataResult = {
   handleDelete: (name: string) => void;
   handleDeleteAll: (options: DeleteAllOptions) => void;
   handleDownload: (name: string) => Promise<void>;
+  handleDownloadSub2API: (name: string) => Promise<void>;
   handleStatusToggle: (item: AuthFileItem, enabled: boolean) => Promise<void>;
   toggleSelect: (name: string) => void;
   selectAllVisible: (visibleFiles: AuthFileItem[]) => void;
@@ -464,6 +466,29 @@ export function useAuthFilesData(): UseAuthFilesDataResult {
     [showNotification, t]
   );
 
+  const handleDownloadSub2API = useCallback(
+    async (name: string) => {
+      try {
+        const text = await authFilesApi.downloadText(name);
+        const converted = convertCodexCredentialText(text, 'cpa-to-sub2api');
+        const filename = name.toLowerCase().endsWith('.json')
+          ? `${name.slice(0, -5)}.sub2api.json`
+          : `${name}.sub2api.json`;
+        downloadBlob({
+          filename,
+          blob: new Blob([JSON.stringify(converted, null, 2)], {
+            type: 'application/json;charset=utf-8',
+          }),
+        });
+        showNotification(t('auth_files.download_sub2api_success'), 'success');
+      } catch (err: unknown) {
+        const errorMessage = err instanceof Error ? err.message : '';
+        showNotification(`${t('notification.download_failed')}: ${errorMessage}`, 'error');
+      }
+    },
+    [showNotification, t]
+  );
+
   const handleStatusToggle = useCallback(
     async (item: AuthFileItem, enabled: boolean) => {
       const name = item.name;
@@ -693,6 +718,7 @@ export function useAuthFilesData(): UseAuthFilesDataResult {
     handleDelete,
     handleDeleteAll,
     handleDownload,
+    handleDownloadSub2API,
     handleStatusToggle,
     toggleSelect,
     selectAllVisible,

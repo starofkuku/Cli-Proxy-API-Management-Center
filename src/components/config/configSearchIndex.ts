@@ -12,7 +12,8 @@ export type VisualSectionId =
   | 'quota'
   | 'streaming'
   | 'advanced'
-  | 'payload';
+  | 'payload'
+  | 'converter';
 
 export interface ConfigFieldSearchEntry {
   /** Stable anchor id; matches FieldAnchor's `fieldId` and the rendered DOM id. */

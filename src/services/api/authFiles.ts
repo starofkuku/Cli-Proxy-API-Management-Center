@@ -81,6 +81,22 @@ export type AuthFileTrashInvalidResult = {
   files: string[];
   failed: AuthFileBatchFailure[];
 };
+export type CodexRefreshTokenConvertedFile = {
+  index: number;
+  name: string;
+  content: Record<string, unknown>;
+};
+export type CodexRefreshTokenConvertFailure = {
+  index: number;
+  error: string;
+};
+export type CodexRefreshTokenConvertResult = {
+  total: number;
+  converted: number;
+  failedCount: number;
+  files: CodexRefreshTokenConvertedFile[];
+  failed: CodexRefreshTokenConvertFailure[];
+};
 type AuthFileBatchDeleteResult = {
   status: string;
   deleted: number;
@@ -406,6 +422,29 @@ export const authFilesApi = {
   list: async () => dedupeAuthFilesResponse(await apiClient.get<AuthFilesResponse>('/auth-files')),
 
   refresh: () => apiClient.post<{ status: string }>('/auth-files/refresh'),
+
+  convertCodexRefreshTokens: async (
+    refreshTokens: string[],
+    clientID: string
+  ): Promise<CodexRefreshTokenConvertResult> => {
+    const payload = await apiClient.post<{
+      total?: number;
+      converted?: number;
+      failed_count?: number;
+      files?: CodexRefreshTokenConvertedFile[];
+      failed?: CodexRefreshTokenConvertFailure[];
+    }>('/auth-files/refresh-tokens/convert', {
+      refresh_tokens: refreshTokens,
+      client_id: clientID,
+    });
+    return {
+      total: Number(payload.total ?? refreshTokens.length),
+      converted: Number(payload.converted ?? 0),
+      failedCount: Number(payload.failed_count ?? 0),
+      files: Array.isArray(payload.files) ? payload.files : [],
+      failed: Array.isArray(payload.failed) ? payload.failed : [],
+    };
+  },
 
   setStatus: (name: string, disabled: boolean) =>
     apiClient.patch<AuthFileStatusResponse>('/auth-files/status', { name, disabled }),

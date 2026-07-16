@@ -16,6 +16,7 @@ import { Select } from '@/components/ui/Select';
 import { ToggleSwitch } from '@/components/ui/ToggleSwitch';
 import {
   IconCode,
+  IconFileText,
   IconKey,
   IconNetwork,
   IconSatellite,
@@ -53,6 +54,7 @@ import {
   type VisualSectionId,
 } from './configSearchIndex';
 import styles from './VisualConfigEditor.module.scss';
+import { CodexFormatConverter } from './CodexFormatConverter';
 
 type EditorMode = 'simple' | 'full';
 
@@ -484,6 +486,12 @@ export function VisualConfigEditor({
         title: t('config_management.visual.sections.payload.title'),
         icon: IconCode,
         errorCount: hasPayloadValidationErrors ? 1 : 0,
+      },
+      {
+        id: 'converter',
+        title: t('config_management.visual.sections.converter.title'),
+        icon: IconFileText,
+        errorCount: 0,
       },
     ],
     [countErrors, hasPayloadValidationErrors, t]
@@ -1911,6 +1919,19 @@ export function VisualConfigEditor({
                   </Collapsible>
                 </FieldAnchor>
               </SectionStack>
+            </ConfigSection>
+
+            <ConfigSection
+              id="converter"
+              ref={(node) => {
+                sectionRefs.current.converter = node;
+              }}
+              indexLabel="08"
+              icon={<IconFileText size={16} />}
+              title={t('config_management.visual.sections.converter.title')}
+              description={t('config_management.visual.sections.converter.description')}
+            >
+              <CodexFormatConverter backendDisabled={disabled} />
             </ConfigSection>
           </div>
         </div>

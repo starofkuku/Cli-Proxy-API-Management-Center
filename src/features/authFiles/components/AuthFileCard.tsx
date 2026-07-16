@@ -5,6 +5,7 @@ import { SelectionCheckbox } from '@/components/ui/SelectionCheckbox';
 import { ToggleSwitch } from '@/components/ui/ToggleSwitch';
 import {
   IconDownload,
+  IconCode,
   IconInfo,
   IconModelCluster,
   IconSettings,
@@ -51,6 +52,7 @@ export type AuthFileCardProps = {
   statusBarCache: Map<string, AuthFileStatusBarData>;
   onShowModels: (file: AuthFileItem) => void;
   onDownload: (name: string) => void;
+  onDownloadSub2API: (name: string) => void;
   onOpenPrefixProxyEditor: (file: AuthFileItem) => void;
   onDelete: (name: string) => void;
   onToggleStatus: (file: AuthFileItem, enabled: boolean) => void;
@@ -77,6 +79,7 @@ export function AuthFileCard(props: AuthFileCardProps) {
     statusBarCache,
     onShowModels,
     onDownload,
+    onDownloadSub2API,
     onOpenPrefixProxyEditor,
     onDelete,
     onToggleStatus,
@@ -291,6 +294,18 @@ export function AuthFileCard(props: AuthFileCardProps) {
                   >
                     <IconDownload className={styles.actionIcon} size={16} />
                   </Button>
+                  {providerKey === 'codex' && (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => onDownloadSub2API(file.name)}
+                      className={styles.iconButton}
+                      title={t('auth_files.download_sub2api_button')}
+                      disabled={disableControls}
+                    >
+                      <IconCode className={styles.actionIcon} size={16} />
+                    </Button>
+                  )}
                   <Button
                     variant="secondary"
                     size="sm"
