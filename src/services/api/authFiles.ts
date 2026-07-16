@@ -61,6 +61,26 @@ export type AuthFileArchiveUploadResult = {
   files: string[];
   failed: AuthFileBatchFailure[];
 };
+export type AuthFileRecycleItem = {
+  name: string;
+  originalName: string;
+  deletedAt: string;
+  reason: string;
+  provider: string;
+  email: string;
+  size: number;
+};
+type AuthFileRecycleListResponse = {
+  files?: unknown;
+  count?: number;
+};
+export type AuthFileTrashInvalidResult = {
+  status: string;
+  matched: number;
+  deleted: number;
+  files: string[];
+  failed: AuthFileBatchFailure[];
+};
 type AuthFileBatchDeleteResult = {
   status: string;
   deleted: number;
@@ -109,6 +129,27 @@ const normalizeBatchFailures = (value: unknown): AuthFileBatchFailure[] => {
 
     if (!name && !error) return result;
     result.push({ name, error: error || 'Unknown error' });
+    return result;
+  }, []);
+};
+
+const normalizeRecycleItems = (value: unknown): AuthFileRecycleItem[] => {
+  if (!Array.isArray(value)) return [];
+  return value.reduce<AuthFileRecycleItem[]>((result, item) => {
+    if (!item || typeof item !== 'object') return result;
+    const entry = item as Record<string, unknown>;
+    const name = String(entry.name ?? '').trim();
+    const originalName = String(entry.original_name ?? '').trim();
+    if (!name || !originalName) return result;
+    result.push({
+      name,
+      originalName,
+      deletedAt: String(entry.deleted_at ?? ''),
+      reason: String(entry.reason ?? ''),
+      provider: String(entry.provider ?? ''),
+      email: String(entry.email ?? ''),
+      size: Number(entry.size ?? 0),
+    });
     return result;
   }, []);
 };
@@ -405,6 +446,42 @@ export const authFilesApi = {
       files: normalizeBatchFileNames(payload?.files),
       failed,
     };
+  },
+
+  listRecycleBin: async (): Promise<AuthFileRecycleItem[]> => {
+    const payload = await apiClient.get<AuthFileRecycleListResponse>('/auth-files/recycle-bin');
+    return normalizeRecycleItems(payload?.files);
+  },
+
+  trashInvalid: async (): Promise<AuthFileTrashInvalidResult> => {
+    const payload = await apiClient.post<AuthFileBatchDeleteResponse & { matched?: number }>(
+      '/auth-files/trash-invalid'
+    );
+    const failed = normalizeBatchFailures(payload?.failed);
+    return {
+      status: payload?.status ?? (failed.length > 0 ? 'partial' : 'ok'),
+      matched: Number(payload?.matched ?? 0),
+      deleted: Number(payload?.deleted ?? 0),
+      files: normalizeBatchFileNames(payload?.files),
+      failed,
+    };
+  },
+
+  restoreRecycleFiles: async (names: string[]): Promise<AuthFileBatchDeleteResult> => {
+    const requestedNames = normalizeRequestedAuthFileNames(names);
+    const payload = await apiClient.post<AuthFileBatchDeleteResponse>(
+      '/auth-files/recycle-bin/restore',
+      { names: requestedNames }
+    );
+    return normalizeBatchDeleteResponse(payload, requestedNames);
+  },
+
+  permanentlyDeleteRecycleFiles: async (names: string[]): Promise<AuthFileBatchDeleteResult> => {
+    const requestedNames = normalizeRequestedAuthFileNames(names);
+    const payload = await apiClient.delete<AuthFileBatchDeleteResponse>('/auth-files/recycle-bin', {
+      data: { names: requestedNames },
+    });
+    return normalizeBatchDeleteResponse(payload, requestedNames);
   },
 
   deleteFiles: async (names: string[]): Promise<AuthFileBatchDeleteResult> => {

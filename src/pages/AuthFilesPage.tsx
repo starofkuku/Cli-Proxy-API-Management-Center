@@ -22,10 +22,11 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { Modal } from '@/components/ui/Modal';
-import { IconFilterAll, IconSearch } from '@/components/ui/icons';
+import { IconFilterAll, IconSearch, IconTrash2 } from '@/components/ui/icons';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { ToggleSwitch } from '@/components/ui/ToggleSwitch';
 import { AuthFilesStatusFilterCard } from '@/features/authFiles/components/AuthFilesStatusFilterCard';
+import { AuthFilesRecycleBin } from '@/features/authFiles/components/AuthFilesRecycleBin';
 import { copyToClipboard } from '@/utils/clipboard';
 import {
   MAX_CARD_PAGE_SIZE,
@@ -64,7 +65,7 @@ import {
   type AuthFilesSortMode,
 } from '@/features/authFiles/uiState';
 import { useAuthStore, useNotificationStore, useThemeStore } from '@/stores';
-import { authFilesApi } from '@/services/api';
+import { authFilesApi, type AuthFileRecycleItem } from '@/services/api';
 import styles from './AuthFilesPage.module.scss';
 
 const easePower3Out = (progress: number) => 1 - (1 - progress) ** 4;
@@ -74,6 +75,7 @@ const BATCH_BAR_HIDDEN_TRANSFORM = 'translateX(-50%) translateY(56px)';
 const DEFAULT_REGULAR_PAGE_SIZE = 9;
 const DEFAULT_COMPACT_PAGE_SIZE = 12;
 const MAX_AUTH_ARCHIVE_SIZE = 100 * 1024 * 1024;
+const RECYCLE_BIN_FILTER = 'recycle-bin';
 
 type PasteJsonFormat = 'cpa' | 'gptSession';
 
@@ -120,6 +122,7 @@ const normalizePersistedStatusFilterMode = (value: unknown): AuthFilesStatusFilt
 export function AuthFilesPage() {
   const { t } = useTranslation();
   const showNotification = useNotificationStore((state) => state.showNotification);
+  const showConfirmation = useNotificationStore((state) => state.showConfirmation);
   const connectionStatus = useAuthStore((state) => state.connectionStatus);
   const resolvedTheme: ResolvedTheme = useThemeStore((state) => state.resolvedTheme);
   const pageTransitionLayer = usePageTransitionLayer();
@@ -145,6 +148,10 @@ export function AuthFilesPage() {
   const [uiStateHydrated, setUiStateHydrated] = useState(false);
   const [forceRefreshing, setForceRefreshing] = useState(false);
   const [archiveUploading, setArchiveUploading] = useState(false);
+  const [recycleFiles, setRecycleFiles] = useState<AuthFileRecycleItem[]>([]);
+  const [recycleLoading, setRecycleLoading] = useState(true);
+  const [recycleMutatingName, setRecycleMutatingName] = useState<string | null>(null);
+  const [trashInvalidLoading, setTrashInvalidLoading] = useState(false);
   const archiveInputRef = useRef<HTMLInputElement | null>(null);
   const floatingBatchActionsRef = useRef<HTMLDivElement>(null);
   const batchActionAnimationRef = useRef<AnimationPlaybackControlsWithThen | null>(null);
@@ -223,6 +230,7 @@ export function AuthFilesPage() {
 
   const disableControls = connectionStatus !== 'connected';
   const normalizedFilter = normalizeProviderKey(String(filter));
+  const recycleSelected = filter === RECYCLE_BIN_FILTER;
   const quotaFilterType: QuotaProviderType | null = QUOTA_PROVIDER_TYPES.has(
     normalizedFilter as QuotaProviderType
   )
@@ -384,9 +392,20 @@ export function AuthFilesPage() {
     setPage(1);
   }, []);
 
+  const loadRecycleBin = useCallback(async () => {
+    setRecycleLoading(true);
+    try {
+      setRecycleFiles(await authFilesApi.listRecycleBin());
+    } catch {
+      setRecycleFiles([]);
+    } finally {
+      setRecycleLoading(false);
+    }
+  }, []);
+
   const handleHeaderRefresh = useCallback(async () => {
-    await Promise.all([loadFiles(), loadExcluded(), loadModelAlias()]);
-  }, [loadFiles, loadExcluded, loadModelAlias]);
+    await Promise.all([loadFiles(), loadExcluded(), loadModelAlias(), loadRecycleBin()]);
+  }, [loadFiles, loadExcluded, loadModelAlias, loadRecycleBin]);
 
   const handleForceRefresh = useCallback(async () => {
     setForceRefreshing(true);
@@ -446,6 +465,86 @@ export function AuthFilesPage() {
       }
     },
     [loadFiles, showNotification, t]
+  );
+
+  const handleTrashInvalid = useCallback(() => {
+    showConfirmation({
+      title: t('auth_files.trash_invalid_title'),
+      message: t('auth_files.trash_invalid_confirm'),
+      confirmText: t('auth_files.trash_invalid_button'),
+      variant: 'danger',
+      onConfirm: async () => {
+        setTrashInvalidLoading(true);
+        try {
+          const result = await authFilesApi.trashInvalid();
+          showNotification(
+            t('auth_files.trash_invalid_result', {
+              matched: result.matched,
+              deleted: result.deleted,
+              failed: result.failed.length,
+            }),
+            result.failed.length > 0 ? 'warning' : 'success'
+          );
+          await Promise.all([loadFiles(), loadRecycleBin()]);
+        } catch (err: unknown) {
+          const message = err instanceof Error ? err.message : t('common.unknown_error');
+          showNotification(`${t('auth_files.trash_invalid_failed')}: ${message}`, 'error');
+        } finally {
+          setTrashInvalidLoading(false);
+        }
+      },
+    });
+  }, [loadFiles, loadRecycleBin, showConfirmation, showNotification, t]);
+
+  const handleRestoreRecycleFile = useCallback(
+    async (file: AuthFileRecycleItem) => {
+      setRecycleMutatingName(file.name);
+      try {
+        await authFilesApi.restoreRecycleFiles([file.name]);
+        showNotification(
+          t('auth_files.recycle_restore_success', { name: file.originalName }),
+          'success'
+        );
+        await Promise.all([loadFiles(), loadRecycleBin()]);
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : t('common.unknown_error');
+        showNotification(`${t('auth_files.recycle_restore_failed')}: ${message}`, 'error');
+      } finally {
+        setRecycleMutatingName(null);
+      }
+    },
+    [loadFiles, loadRecycleBin, showNotification, t]
+  );
+
+  const handlePermanentDeleteRecycleFile = useCallback(
+    (file: AuthFileRecycleItem) => {
+      showConfirmation({
+        title: t('auth_files.recycle_permanent_delete_title'),
+        message: t('auth_files.recycle_permanent_delete_confirm', { name: file.originalName }),
+        confirmText: t('auth_files.recycle_permanent_delete_button'),
+        variant: 'danger',
+        onConfirm: async () => {
+          setRecycleMutatingName(file.name);
+          try {
+            await authFilesApi.permanentlyDeleteRecycleFiles([file.name]);
+            showNotification(
+              t('auth_files.recycle_permanent_delete_success', { name: file.originalName }),
+              'success'
+            );
+            await loadRecycleBin();
+          } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : t('common.unknown_error');
+            showNotification(
+              `${t('auth_files.recycle_permanent_delete_failed')}: ${message}`,
+              'error'
+            );
+          } finally {
+            setRecycleMutatingName(null);
+          }
+        },
+      });
+    },
+    [loadRecycleBin, showConfirmation, showNotification, t]
   );
 
   const closePasteJsonModal = useCallback(() => {
@@ -553,6 +652,11 @@ export function AuthFilesPage() {
     loadExcluded();
     loadModelAlias();
   }, [isCurrentLayer, loadFiles, loadExcluded, loadModelAlias]);
+
+  useEffect(() => {
+    if (!isCurrentLayer) return;
+    void loadRecycleBin();
+  }, [files.length, isCurrentLayer, loadRecycleBin]);
 
   useInterval(
     () => {
@@ -845,6 +949,29 @@ export function AuthFilesPage() {
             </button>
           );
         })}
+        <button
+          className={`${styles.filterTag} ${recycleSelected ? styles.filterTagActive : ''}`}
+          style={
+            {
+              '--filter-color': '#dc2626',
+              '--filter-surface': 'color-mix(in srgb, #dc2626 10%, var(--bg-secondary))',
+              '--filter-active-text': '#ffffff',
+            } as CSSProperties
+          }
+          onClick={() => {
+            setFilter(RECYCLE_BIN_FILTER);
+            setPage(1);
+            deselectAll();
+          }}
+        >
+          <span className={styles.filterTagLabel}>
+            <span className={styles.filterTagIconWrap}>
+              <IconTrash2 size={16} />
+            </span>
+            <span className={styles.filterTagText}>{t('auth_files.recycle_tab')}</span>
+          </span>
+          <span className={styles.filterTagCount}>{recycleFiles.length}</span>
+        </button>
       </div>
     </div>
   );
@@ -879,6 +1006,15 @@ export function AuthFilesPage() {
               title={t('auth_files.force_refresh_hint')}
             >
               {t('auth_files.force_refresh_button')}
+            </Button>
+            <Button
+              variant="danger"
+              size="sm"
+              onClick={handleTrashInvalid}
+              disabled={disableControls || loading || trashInvalidLoading}
+              loading={trashInvalidLoading}
+            >
+              {t('auth_files.trash_invalid_button')}
             </Button>
             <Button
               variant="secondary"
@@ -938,140 +1074,153 @@ export function AuthFilesPage() {
           {renderFilterTags()}
 
           <div className={styles.filterContent}>
-            <div className={styles.filterControlsPanel}>
-              <div className={styles.filterControls}>
-                <div className={`${styles.filterItem} ${styles.filterSearchItem}`}>
-                  <label>{t('auth_files.search_label')}</label>
-                  <Input
-                    className={styles.searchInput}
-                    value={search}
-                    onChange={(e) => {
-                      setSearch(e.target.value);
-                      setPage(1);
-                    }}
-                    placeholder={t('auth_files.search_placeholder')}
-                    rightElement={<IconSearch className={styles.searchIcon} size={18} />}
-                  />
-                </div>
-                <div className={styles.filterOptionsCard}>
-                  <div className={styles.filterOptionsControl}>
-                    <label>{t('auth_files.page_size_label')}</label>
-                    <input
-                      className={styles.pageSizeSelect}
-                      type="number"
-                      min={MIN_CARD_PAGE_SIZE}
-                      max={MAX_CARD_PAGE_SIZE}
-                      step={1}
-                      value={pageSizeInput}
-                      onChange={handlePageSizeChange}
-                      onBlur={(e) => commitPageSizeInput(e.currentTarget.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.currentTarget.blur();
-                        }
-                      }}
-                    />
-                  </div>
-                  <div className={styles.filterOptionsControl}>
-                    <label>{t('auth_files.sort_label')}</label>
-                    <Select
-                      className={styles.sortSelect}
-                      value={sortMode}
-                      options={sortOptions}
-                      onChange={handleSortModeChange}
-                      ariaLabel={t('auth_files.sort_label')}
-                      fullWidth
-                    />
-                  </div>
-                  <div className={styles.filterOptionsToggle}>
-                    <ToggleSwitch
-                      checked={compactMode}
-                      onChange={(value) => setCompactMode(value)}
-                      ariaLabel={t('auth_files.compact_mode_label')}
-                      label={
-                        <span className={styles.filterToggleLabel}>
-                          {t('auth_files.compact_mode_label')}
-                        </span>
-                      }
-                    />
-                  </div>
-                </div>
-                <div className={`${styles.filterItem} ${styles.filterToggleItem}`}>
-                  <label>{t('auth_files.display_options_label')}</label>
-                  <AuthFilesStatusFilterCard
-                    label={t('auth_files.problem_filter_label')}
-                    minLabel={statusFilterOptions[0]?.label}
-                    maxLabel={statusFilterOptions[statusFilterOptions.length - 1]?.label}
-                    value={statusFilterMode}
-                    options={statusFilterOptions}
-                    onChange={(next) =>
-                      handleStatusFilterModeChange(next as AuthFilesStatusFilterMode)
-                    }
-                  />
-                </div>
-              </div>
-            </div>
-
-            {loading ? (
-              <div className={styles.hint}>{t('common.loading')}</div>
-            ) : pageItems.length === 0 ? (
-              <EmptyState
-                title={t('auth_files.search_empty_title')}
-                description={t('auth_files.search_empty_desc')}
+            {recycleSelected ? (
+              <AuthFilesRecycleBin
+                files={recycleFiles}
+                loading={recycleLoading}
+                mutatingName={recycleMutatingName}
+                disabled={disableControls}
+                onRestore={(file) => void handleRestoreRecycleFile(file)}
+                onPermanentDelete={handlePermanentDeleteRecycleFile}
               />
             ) : (
-              <div
-                className={`${styles.fileGrid} ${quotaFilterType ? styles.fileGridQuotaManaged : ''} ${compactMode ? styles.fileGridCompact : ''}`}
-              >
-                {pageItems.map((file) => (
-                  <AuthFileCard
-                    key={file.name}
-                    file={file}
-                    compact={compactMode}
-                    selected={selectedFiles.has(file.name)}
-                    resolvedTheme={resolvedTheme}
-                    disableControls={disableControls}
-                    deleting={deleting}
-                    statusUpdating={statusUpdating}
-                    quotaFilterType={quotaFilterType}
-                    statusBarCache={statusBarCache}
-                    onShowModels={showModels}
-                    onDownload={handleDownload}
-                    onOpenPrefixProxyEditor={openPrefixProxyEditor}
-                    onDelete={handleDelete}
-                    onToggleStatus={handleStatusToggle}
-                    onToggleSelect={toggleSelect}
-                  />
-                ))}
-              </div>
-            )}
-
-            {!loading && sorted.length > pageSize && (
-              <div className={styles.pagination}>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => setPage(Math.max(1, currentPage - 1))}
-                  disabled={currentPage <= 1}
-                >
-                  {t('auth_files.pagination_prev')}
-                </Button>
-                <div className={styles.pageInfo}>
-                  {t('auth_files.pagination_info', {
-                    current: currentPage,
-                    total: totalPages,
-                    count: sorted.length,
-                  })}
+              <>
+                <div className={styles.filterControlsPanel}>
+                  <div className={styles.filterControls}>
+                    <div className={`${styles.filterItem} ${styles.filterSearchItem}`}>
+                      <label>{t('auth_files.search_label')}</label>
+                      <Input
+                        className={styles.searchInput}
+                        value={search}
+                        onChange={(e) => {
+                          setSearch(e.target.value);
+                          setPage(1);
+                        }}
+                        placeholder={t('auth_files.search_placeholder')}
+                        rightElement={<IconSearch className={styles.searchIcon} size={18} />}
+                      />
+                    </div>
+                    <div className={styles.filterOptionsCard}>
+                      <div className={styles.filterOptionsControl}>
+                        <label>{t('auth_files.page_size_label')}</label>
+                        <input
+                          className={styles.pageSizeSelect}
+                          type="number"
+                          min={MIN_CARD_PAGE_SIZE}
+                          max={MAX_CARD_PAGE_SIZE}
+                          step={1}
+                          value={pageSizeInput}
+                          onChange={handlePageSizeChange}
+                          onBlur={(e) => commitPageSizeInput(e.currentTarget.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.currentTarget.blur();
+                            }
+                          }}
+                        />
+                      </div>
+                      <div className={styles.filterOptionsControl}>
+                        <label>{t('auth_files.sort_label')}</label>
+                        <Select
+                          className={styles.sortSelect}
+                          value={sortMode}
+                          options={sortOptions}
+                          onChange={handleSortModeChange}
+                          ariaLabel={t('auth_files.sort_label')}
+                          fullWidth
+                        />
+                      </div>
+                      <div className={styles.filterOptionsToggle}>
+                        <ToggleSwitch
+                          checked={compactMode}
+                          onChange={(value) => setCompactMode(value)}
+                          ariaLabel={t('auth_files.compact_mode_label')}
+                          label={
+                            <span className={styles.filterToggleLabel}>
+                              {t('auth_files.compact_mode_label')}
+                            </span>
+                          }
+                        />
+                      </div>
+                    </div>
+                    <div className={`${styles.filterItem} ${styles.filterToggleItem}`}>
+                      <label>{t('auth_files.display_options_label')}</label>
+                      <AuthFilesStatusFilterCard
+                        label={t('auth_files.problem_filter_label')}
+                        minLabel={statusFilterOptions[0]?.label}
+                        maxLabel={statusFilterOptions[statusFilterOptions.length - 1]?.label}
+                        value={statusFilterMode}
+                        options={statusFilterOptions}
+                        onChange={(next) =>
+                          handleStatusFilterModeChange(next as AuthFilesStatusFilterMode)
+                        }
+                      />
+                    </div>
+                  </div>
                 </div>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => setPage(Math.min(totalPages, currentPage + 1))}
-                  disabled={currentPage >= totalPages}
-                >
-                  {t('auth_files.pagination_next')}
-                </Button>
-              </div>
+
+                {loading ? (
+                  <div className={styles.hint}>{t('common.loading')}</div>
+                ) : pageItems.length === 0 ? (
+                  <EmptyState
+                    title={t('auth_files.search_empty_title')}
+                    description={t('auth_files.search_empty_desc')}
+                  />
+                ) : (
+                  <div
+                    className={`${styles.fileGrid} ${quotaFilterType ? styles.fileGridQuotaManaged : ''} ${compactMode ? styles.fileGridCompact : ''}`}
+                  >
+                    {pageItems.map((file) => (
+                      <AuthFileCard
+                        key={file.name}
+                        file={file}
+                        compact={compactMode}
+                        selected={selectedFiles.has(file.name)}
+                        resolvedTheme={resolvedTheme}
+                        disableControls={disableControls}
+                        deleting={deleting}
+                        statusUpdating={statusUpdating}
+                        quotaFilterType={quotaFilterType}
+                        statusBarCache={statusBarCache}
+                        onShowModels={showModels}
+                        onDownload={handleDownload}
+                        onOpenPrefixProxyEditor={openPrefixProxyEditor}
+                        onDelete={handleDelete}
+                        onToggleStatus={handleStatusToggle}
+                        onToggleSelect={toggleSelect}
+                      />
+                    ))}
+                  </div>
+                )}
+
+                {!loading && sorted.length > pageSize && (
+                  <div className={styles.pagination}>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => setPage(Math.max(1, currentPage - 1))}
+                      disabled={currentPage <= 1}
+                    >
+                      {t('auth_files.pagination_prev')}
+                    </Button>
+                    <div className={styles.pageInfo}>
+                      {t('auth_files.pagination_info', {
+                        current: currentPage,
+                        total: totalPages,
+                        count: sorted.length,
+                      })}
+                    </div>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => setPage(Math.min(totalPages, currentPage + 1))}
+                      disabled={currentPage >= totalPages}
+                    >
+                      {t('auth_files.pagination_next')}
+                    </Button>
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>
