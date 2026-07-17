@@ -127,6 +127,8 @@ const convertCpaEntryToSub2API = (source: JsonRecord): JsonRecord => {
     platform: 'openai',
     type: 'oauth',
     credentials,
+    concurrency: 1,
+    priority: 50,
   };
   if (isRecord(source.extra) && Object.keys(source.extra).length > 0) {
     result.extra = { ...source.extra };
@@ -228,6 +230,15 @@ export const convertCodexCredentialDocument = (
       ? convertCpaEntryToSub2API(entry)
       : convertSub2APIEntryToCpa(entry)
   );
+  if (direction === 'cpa-to-sub2api') {
+    return {
+      type: 'sub2api-data',
+      version: 1,
+      exported_at: new Date().toISOString(),
+      proxies: [],
+      accounts: converted,
+    };
+  }
   return collected.collection ? converted : converted[0];
 };
 

@@ -6,7 +6,7 @@ import {
 
 describe('Codex credential format conversion', () => {
   test('converts CPA to Sub2API without losing refresh fields', () => {
-    const result = convertCodexCredentialDocument(
+    const document = convertCodexCredentialDocument(
       {
         type: 'codex',
         name: 'user@example.com',
@@ -20,9 +20,20 @@ describe('Codex credential format conversion', () => {
       'cpa-to-sub2api'
     ) as Record<string, unknown>;
 
-    expect(result.platform).toBe('openai');
-    expect(result.type).toBe('oauth');
-    expect(result.credentials).toEqual({
+    expect(document.type).toBe('sub2api-data');
+    expect(document.version).toBe(1);
+    expect(document.proxies).toEqual([]);
+    expect(typeof document.exported_at).toBe('string');
+    const accounts = document.accounts as Array<Record<string, unknown>>;
+    expect(accounts).toHaveLength(1);
+    expect(accounts[0]).toMatchObject({
+      name: 'user@example.com',
+      platform: 'openai',
+      type: 'oauth',
+      concurrency: 1,
+      priority: 50,
+    });
+    expect(accounts[0].credentials).toEqual({
       access_token: 'access',
       refresh_token: 'refresh',
       id_token: 'id-token',
