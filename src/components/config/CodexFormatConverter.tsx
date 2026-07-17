@@ -67,43 +67,29 @@ export function CodexFormatConverter({ backendDisabled = false }: { backendDisab
   };
 
   const convertRefreshTokens = async () => {
-    const refreshTokens = input
-      .split(/\r?\n/)
-      .map((item) => item.trim())
-      .filter(Boolean);
     setError('');
     setSummary('');
-    if (refreshTokens.length === 0) {
-      setOutput('');
+    if (!input.trim()) {
       setError(t('config_management.visual.sections.converter.rt_required'));
       return;
     }
 
     setConverting(true);
     try {
-      const result = await authFilesApi.convertCodexRefreshTokens(refreshTokens, clientID.trim());
-      const converted = result.files.map((file) => file.content);
-      setOutput(JSON.stringify(converted.length === 1 ? converted[0] : converted, null, 2));
+      const result = await authFilesApi.convertCodexRefreshTokens(input, clientID.trim());
       setSummary(
         t('config_management.visual.sections.converter.rt_summary', {
           total: result.total,
-          converted: result.converted,
+          saved: result.saved,
           failed: result.failedCount,
         })
       );
-      if (result.failed.length > 0) {
-        setError(
-          result.failed
-            .map((failure) => `#${failure.index + 1}: ${failure.error}`)
-            .join('\n')
-        );
-      }
+      setInput('');
     } catch (conversionError) {
-      setOutput('');
       setError(
         conversionError instanceof Error
           ? conversionError.message
-          : t('config_management.visual.sections.converter.convert_failed')
+          : t('config_management.visual.sections.converter.import_failed')
       );
     } finally {
       setConverting(false);
@@ -126,12 +112,7 @@ export function CodexFormatConverter({ backendDisabled = false }: { backendDisab
 
   const handleDownload = () => {
     if (!output) return;
-    const target =
-      mode === 'refresh-token'
-        ? 'cpa'
-        : direction === 'cpa-to-sub2api'
-          ? 'sub2api'
-          : 'cpa';
+    const target = direction === 'cpa-to-sub2api' ? 'sub2api' : 'cpa';
     downloadBlob({
       filename: `codex-${target}-${new Date().toISOString().slice(0, 10)}.json`,
       blob: new Blob([output], { type: 'application/json;charset=utf-8' }),
@@ -157,7 +138,7 @@ export function CodexFormatConverter({ backendDisabled = false }: { backendDisab
         </button>
       </div>
 
-      <div className={styles.workspace}>
+      <div className={`${styles.workspace} ${mode === 'refresh-token' ? styles.workspaceSingle : ''}`}>
         <div className={styles.pane}>
           <div className={styles.paneHeader}>
             <div>
@@ -222,33 +203,42 @@ export function CodexFormatConverter({ backendDisabled = false }: { backendDisab
               loading={converting}
               disabled={!input.trim() || (mode === 'refresh-token' && backendDisabled)}
             >
-              {t('config_management.visual.sections.converter.convert_button')}
+              {t(
+                mode === 'json'
+                  ? 'config_management.visual.sections.converter.convert_button'
+                  : 'config_management.visual.sections.converter.import_button'
+              )}
             </Button>
           </div>
+          {mode === 'refresh-token' && summary ? (
+            <div className={styles.summary}>{summary}</div>
+          ) : null}
+          {mode === 'refresh-token' && error ? <pre className={styles.error}>{error}</pre> : null}
         </div>
 
-        <div className={styles.pane}>
-          <div className={styles.paneHeader}>
-            <div>
-              <h3>{t('config_management.visual.sections.converter.output_title')}</h3>
-              <p>{t('config_management.visual.sections.converter.output_hint')}</p>
+        {mode === 'json' ? (
+          <div className={styles.pane}>
+            <div className={styles.paneHeader}>
+              <div>
+                <h3>{t('config_management.visual.sections.converter.output_title')}</h3>
+                <p>{t('config_management.visual.sections.converter.output_hint')}</p>
+              </div>
+              <Button variant="secondary" size="sm" onClick={handleDownload} disabled={!output}>
+                <IconDownload size={15} />
+                {t('config_management.visual.sections.converter.download_json')}
+              </Button>
             </div>
-            <Button variant="secondary" size="sm" onClick={handleDownload} disabled={!output}>
-              <IconDownload size={15} />
-              {t('config_management.visual.sections.converter.download_json')}
-            </Button>
+            <textarea
+              className={`${styles.textarea} ${styles.output}`}
+              value={output}
+              readOnly
+              placeholder={t('config_management.visual.sections.converter.output_placeholder')}
+              spellCheck={false}
+              aria-label={t('config_management.visual.sections.converter.output_title')}
+            />
+            {error ? <pre className={styles.error}>{error}</pre> : null}
           </div>
-          <textarea
-            className={`${styles.textarea} ${styles.output}`}
-            value={output}
-            readOnly
-            placeholder={t('config_management.visual.sections.converter.output_placeholder')}
-            spellCheck={false}
-            aria-label={t('config_management.visual.sections.converter.output_title')}
-          />
-          {summary ? <div className={styles.summary}>{summary}</div> : null}
-          {error ? <pre className={styles.error}>{error}</pre> : null}
-        </div>
+        ) : null}
       </div>
     </div>
   );

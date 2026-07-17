@@ -45,6 +45,10 @@
   }
 }
 
+.workspaceSingle {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .pane {
   display: flex;
   flex-direction: column;
