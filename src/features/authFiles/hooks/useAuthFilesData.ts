@@ -26,6 +26,11 @@ type DeleteAllOptions = {
   onResetEnabledOnly: () => void;
 };
 
+export type AuthJsonTextUpload = {
+  text: string;
+  fileName: string;
+};
+
 export type UseAuthFilesDataResult = {
   files: AuthFileItem[];
   selectedFiles: Set<string>;
@@ -41,7 +46,7 @@ export type UseAuthFilesDataResult = {
   loadFiles: () => Promise<void>;
   handleUploadClick: () => void;
   handleFileChange: (event: ChangeEvent<HTMLInputElement>) => Promise<void>;
-  uploadJsonText: (text: string, fileName: string) => Promise<boolean>;
+  uploadJsonDocuments: (documents: AuthJsonTextUpload[]) => Promise<boolean>;
   handleDelete: (name: string) => void;
   handleDeleteAll: (options: DeleteAllOptions) => void;
   handleDownload: (name: string) => Promise<void>;
@@ -242,10 +247,13 @@ export function useAuthFilesData(): UseAuthFilesDataResult {
     [loadFiles, showNotification, t]
   );
 
-  const uploadJsonText = useCallback(
-    async (text: string, fileName: string): Promise<boolean> => {
-      const file = new File([text], fileName, { type: 'application/json' });
-      if (file.size > MAX_AUTH_FILE_SIZE) {
+  const uploadJsonDocuments = useCallback(
+    async (documents: AuthJsonTextUpload[]): Promise<boolean> => {
+      if (documents.length === 0) return false;
+      const files = documents.map(
+        ({ text, fileName }) => new File([text], fileName, { type: 'application/json' })
+      );
+      if (files.some((file) => file.size > MAX_AUTH_FILE_SIZE)) {
         showNotification(
           t('auth_files.upload_error_size', { maxSize: formatFileSize(MAX_AUTH_FILE_SIZE) }),
           'error'
@@ -255,18 +263,24 @@ export function useAuthFilesData(): UseAuthFilesDataResult {
 
       setUploading(true);
       try {
-        const result = await authFilesApi.uploadFiles([file]);
+        const result = await authFilesApi.uploadFiles(files);
 
         if (result.uploaded > 0) {
-          showNotification(t('auth_files.upload_success'), 'success');
+          showNotification(
+            t('auth_files.paste_json_result', {
+              uploaded: result.uploaded,
+              failed: result.failed.length,
+            }),
+            result.failed.length > 0 ? 'warning' : 'success'
+          );
           await loadFiles();
-          return true;
         }
 
         if (result.failed.length > 0) {
           const details = result.failed.map((item) => `${item.name}: ${item.error}`).join('; ');
           showNotification(`${t('notification.upload_failed')}: ${details}`, 'error');
         }
+        return result.uploaded > 0;
       } catch (err: unknown) {
         const errorMessage = err instanceof Error ? err.message : 'Unknown error';
         showNotification(`${t('notification.upload_failed')}: ${errorMessage}`, 'error');
@@ -714,7 +728,7 @@ export function useAuthFilesData(): UseAuthFilesDataResult {
     loadFiles,
     handleUploadClick,
     handleFileChange,
-    uploadJsonText,
+    uploadJsonDocuments,
     handleDelete,
     handleDeleteAll,
     handleDownload,

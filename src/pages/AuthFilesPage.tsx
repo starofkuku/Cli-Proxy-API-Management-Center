@@ -55,6 +55,10 @@ import { useAuthFilesPrefixProxyEditor } from '@/features/authFiles/hooks/useAut
 import { useAuthFilesStatusBarCache } from '@/features/authFiles/hooks/useAuthFilesStatusBarCache';
 import { convertGptSessionTextToCpaDocument } from '@/features/authFiles/gptSessionToCpa';
 import {
+  normalizePastedAuthDocuments,
+  parsePastedAuthText,
+} from '@/features/authFiles/pasteImport';
+import {
   isAuthFilesStatusFilterMode,
   isAuthFilesSortMode,
   readAuthFilesUiState,
@@ -84,12 +88,15 @@ const padDatePart = (value: number) => String(value).padStart(2, '0');
 const formatAuthFileTimestamp = (date: Date) =>
   `${date.getFullYear()}-${padDatePart(date.getMonth() + 1)}-${padDatePart(date.getDate())} ${padDatePart(date.getHours())}:${padDatePart(date.getMinutes())}:${padDatePart(date.getSeconds())}`;
 
-const parseJsonObjectText = (value: string): Record<string, unknown> => {
-  const parsed = JSON.parse(value) as unknown;
-  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    throw new Error('Invalid JSON object');
-  }
-  return parsed as Record<string, unknown>;
+const buildPastedJsonUploads = (documents: Record<string, unknown>[], date = new Date()) => {
+  const baseName = formatAuthFileTimestamp(date);
+  return documents.map((document, index) => ({
+    text: JSON.stringify(document, null, 2),
+    fileName:
+      documents.length === 1
+        ? `${baseName}.json`
+        : `${baseName}-${String(index + 1).padStart(3, '0')}.json`,
+  }));
 };
 
 const isEditablePasteTarget = (target: EventTarget | null) => {
@@ -172,7 +179,7 @@ export function AuthFilesPage() {
     loadFiles,
     handleUploadClick,
     handleFileChange,
-    uploadJsonText,
+    uploadJsonDocuments,
     handleDelete,
     handleDownload,
     handleDownloadSub2API,
@@ -562,12 +569,12 @@ export function AuthFilesPage() {
       return;
     }
 
-    let parsed: Record<string, unknown> | Record<string, unknown>[];
+    let documents: Record<string, unknown>[];
     try {
-      parsed =
+      documents =
         pasteJsonFormat === 'gptSession'
-          ? convertGptSessionTextToCpaDocument(trimmed)
-          : parseJsonObjectText(trimmed);
+          ? normalizePastedAuthDocuments(convertGptSessionTextToCpaDocument(trimmed))
+          : parsePastedAuthText(trimmed);
     } catch (err: unknown) {
       const errorMessage =
         pasteJsonFormat === 'gptSession' && err instanceof Error
@@ -582,14 +589,13 @@ export function AuthFilesPage() {
       return;
     }
 
-    const fileName = `${formatAuthFileTimestamp(new Date())}.json`;
-    const saved = await uploadJsonText(JSON.stringify(parsed, null, 2), fileName);
+    const saved = await uploadJsonDocuments(buildPastedJsonUploads(documents));
     if (!saved) return;
 
     setPasteJsonModalOpen(false);
     setPasteJsonText('');
     setPasteJsonFormat('cpa');
-  }, [pasteJsonFormat, pasteJsonText, showNotification, t, uploadJsonText]);
+  }, [pasteJsonFormat, pasteJsonText, showNotification, t, uploadJsonDocuments]);
 
   const uploadCpaText = useCallback(
     async (text: string) => {
@@ -599,18 +605,17 @@ export function AuthFilesPage() {
         return false;
       }
 
-      let parsed: Record<string, unknown>;
+      let documents: Record<string, unknown>[];
       try {
-        parsed = parseJsonObjectText(trimmed);
+        documents = parsePastedAuthText(trimmed);
       } catch {
         showNotification(t('auth_files.paste_json_invalid'), 'error');
         return false;
       }
 
-      const fileName = `${formatAuthFileTimestamp(new Date())}.json`;
-      return uploadJsonText(JSON.stringify(parsed, null, 2), fileName);
+      return uploadJsonDocuments(buildPastedJsonUploads(documents));
     },
-    [showNotification, t, uploadJsonText]
+    [showNotification, t, uploadJsonDocuments]
   );
 
   const handleClipboardCpaUpload = useCallback(async () => {
@@ -708,7 +713,7 @@ export function AuthFilesPage() {
 
   const pasteJsonFormatOptions = useMemo(
     () => [
-      { value: 'cpa', label: 'cpa' },
+      { value: 'cpa', label: 'CPA / Sub2API' },
       { value: 'gptSession', label: 'GptSession' },
     ],
     []
