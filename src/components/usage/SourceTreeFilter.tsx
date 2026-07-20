@@ -12,10 +12,16 @@ export interface SourceTreeOption {
   count: number;
 }
 
+export interface SourceTreeTypeGroup {
+  id: string;
+  label: string;
+  options: SourceTreeOption[];
+}
+
 export interface SourceTreeGroup {
   id: 'provider' | 'authFile' | 'other';
   label: string;
-  options: SourceTreeOption[];
+  typeGroups: SourceTreeTypeGroup[];
 }
 
 export interface SourceTreeFilterProps {
@@ -24,6 +30,24 @@ export interface SourceTreeFilterProps {
   onChange: (keys: Set<string>) => void;
   disabled?: boolean;
 }
+
+const collectGroupKeys = (group: SourceTreeGroup): string[] =>
+  group.typeGroups.flatMap((typeGroup) => typeGroup.options.map((option) => option.key));
+
+const collectTypeGroupKeys = (typeGroup: SourceTreeTypeGroup): string[] =>
+  typeGroup.options.map((option) => option.key);
+
+const applyKeys = (base: Set<string>, keys: string[], checked: boolean): Set<string> => {
+  const next = new Set(base);
+  keys.forEach((key) => {
+    if (checked) {
+      next.add(key);
+    } else {
+      next.delete(key);
+    }
+  });
+  return next;
+};
 
 export function SourceTreeFilter({
   groups,
@@ -34,10 +58,7 @@ export function SourceTreeFilter({
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
-  const allKeys = useMemo(
-    () => groups.flatMap((group) => group.options.map((option) => option.key)),
-    [groups]
-  );
+  const allKeys = useMemo(() => groups.flatMap((group) => collectGroupKeys(group)), [groups]);
   const selectedCount = allKeys.filter((key) => selectedKeys.has(key)).length;
   const isAllSelected = allKeys.length > 0 && selectedCount === allKeys.length;
   const isDisabled = disabled || allKeys.length === 0;
@@ -59,25 +80,15 @@ export function SourceTreeFilter({
   };
 
   const toggleGroup = (group: SourceTreeGroup, checked: boolean) => {
-    const next = new Set(selectedKeys);
-    group.options.forEach((option) => {
-      if (checked) {
-        next.add(option.key);
-      } else {
-        next.delete(option.key);
-      }
-    });
-    onChange(next);
+    onChange(applyKeys(selectedKeys, collectGroupKeys(group), checked));
+  };
+
+  const toggleTypeGroup = (typeGroup: SourceTreeTypeGroup, checked: boolean) => {
+    onChange(applyKeys(selectedKeys, collectTypeGroupKeys(typeGroup), checked));
   };
 
   const toggleOption = (option: SourceTreeOption, checked: boolean) => {
-    const next = new Set(selectedKeys);
-    if (checked) {
-      next.add(option.key);
-    } else {
-      next.delete(option.key);
-    }
-    onChange(next);
+    onChange(applyKeys(selectedKeys, [option.key], checked));
   };
 
   const buttonText =
@@ -122,7 +133,7 @@ export function SourceTreeFilter({
 
             <div className={styles.sourceTreeGroups}>
               {groups.map((group) => {
-                const groupKeys = group.options.map((option) => option.key);
+                const groupKeys = collectGroupKeys(group);
                 const groupSelectedCount = groupKeys.filter((key) => selectedKeys.has(key)).length;
                 const groupChecked = groupSelectedCount === groupKeys.length;
 
@@ -141,25 +152,58 @@ export function SourceTreeFilter({
                       </span>
                     </div>
 
-                    <div className={styles.sourceTreeItems}>
-                      {group.options.map((option) => (
-                        <SelectionCheckbox
-                          key={option.key}
-                          checked={selectedKeys.has(option.key)}
-                          onChange={(checked) => toggleOption(option, checked)}
-                          className={styles.sourceTreeItem}
-                          labelClassName={styles.sourceTreeItemLabel}
-                          label={
-                            <>
-                              <span className={styles.sourceTreeItemName}>{option.label}</span>
-                              <span className={styles.sourceTreeItemMeta}>
-                                {option.type || t('usage_stats.source_type_unknown')} ·{' '}
-                                {formatCompactNumber(option.count)}
+                    <div className={styles.sourceTreeTypeGroups}>
+                      {group.typeGroups.map((typeGroup) => {
+                        const typeKeys = collectTypeGroupKeys(typeGroup);
+                        const typeSelectedCount = typeKeys.filter((key) =>
+                          selectedKeys.has(key)
+                        ).length;
+                        const typeChecked = typeSelectedCount === typeKeys.length;
+                        const typeTotalCount = typeGroup.options.reduce(
+                          (sum, option) => sum + option.count,
+                          0
+                        );
+
+                        return (
+                          <div className={styles.sourceTreeTypeGroup} key={typeGroup.id}>
+                            <div className={styles.sourceTreeTypeHeader}>
+                              <SelectionCheckbox
+                                checked={typeChecked}
+                                onChange={(checked) => toggleTypeGroup(typeGroup, checked)}
+                                label={typeGroup.label}
+                                className={styles.sourceTreeCheck}
+                                labelClassName={styles.sourceTreeTypeLabel}
+                              />
+                              <span className={styles.sourceTreeCount}>
+                                {typeSelectedCount}/{typeKeys.length} ·{' '}
+                                {formatCompactNumber(typeTotalCount)}
                               </span>
-                            </>
-                          }
-                        />
-                      ))}
+                            </div>
+
+                            <div className={styles.sourceTreeItems}>
+                              {typeGroup.options.map((option) => (
+                                <SelectionCheckbox
+                                  key={option.key}
+                                  checked={selectedKeys.has(option.key)}
+                                  onChange={(checked) => toggleOption(option, checked)}
+                                  className={styles.sourceTreeItem}
+                                  labelClassName={styles.sourceTreeItemLabel}
+                                  label={
+                                    <>
+                                      <span className={styles.sourceTreeItemName}>
+                                        {option.label}
+                                      </span>
+                                      <span className={styles.sourceTreeItemMeta}>
+                                        {formatCompactNumber(option.count)}
+                                      </span>
+                                    </>
+                                  }
+                                />
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 );

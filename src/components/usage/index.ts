@@ -48,4 +48,9 @@ export { RequestEventsDetailsCard } from './RequestEventsDetailsCard';
 export type { RequestEventsDetailsCardProps } from './RequestEventsDetailsCard';
 
 export { SourceTreeFilter } from './SourceTreeFilter';
-export type { SourceTreeFilterProps, SourceTreeGroup, SourceTreeOption } from './SourceTreeFilter';
+export type {
+  SourceTreeFilterProps,
+  SourceTreeGroup,
+  SourceTreeOption,
+  SourceTreeTypeGroup,
+} from './SourceTreeFilter';

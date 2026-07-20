@@ -37,6 +37,8 @@ import {
   ServiceHealthCard,
   SourceTreeFilter,
   type SourceTreeGroup,
+  type SourceTreeOption,
+  type SourceTreeTypeGroup,
   useUsageData,
   useSparklines,
   useChartData,
@@ -76,6 +78,28 @@ const DEFAULT_TIME_RANGE: UsageTimeRange = 'today';
 const MAX_CHART_LINES = 9;
 const SOURCE_GROUP_ORDER = ['provider', 'authFile', 'other'] as const;
 const PROVIDER_SOURCE_TYPES = new Set(['gemini', 'claude', 'codex', 'vertex', 'openai']);
+const SOURCE_TYPE_ORDER = [
+  'codex',
+  'claude',
+  'gemini',
+  'antigravity',
+  'kimi',
+  'xai',
+  'grok',
+  'vertex',
+  'openai',
+] as const;
+const SOURCE_TYPE_LABELS: Record<string, string> = {
+  codex: 'Codex',
+  claude: 'Claude',
+  gemini: 'Gemini',
+  antigravity: 'Antigravity',
+  kimi: 'Kimi',
+  xai: 'xAI',
+  grok: 'Grok',
+  vertex: 'Vertex',
+  openai: 'OpenAI',
+};
 const TIME_RANGE_OPTIONS: ReadonlyArray<{ value: UsageTimeRange; labelKey: string }> = [
   { value: '7h', labelKey: 'usage_stats.range_7h' },
   { value: '24h', labelKey: 'usage_stats.range_24h' },
@@ -156,6 +180,57 @@ const resolveSourceGroupId = (identityKey: string, type: string): SourceTreeGrou
   return 'other';
 };
 
+const normalizeSourceTypeKey = (type: string): string => {
+  const normalized = type.trim().toLowerCase();
+  return normalized || 'unknown';
+};
+
+const formatSourceTypeLabel = (
+  typeKey: string,
+  t: (key: string, options?: Record<string, unknown>) => string
+): string => {
+  if (typeKey === 'unknown') {
+    return t('usage_stats.source_type_unknown');
+  }
+  return SOURCE_TYPE_LABELS[typeKey] ?? typeKey;
+};
+
+const compareSourceTypeKeys = (a: string, b: string): number => {
+  if (a === b) return 0;
+  if (a === 'unknown') return 1;
+  if (b === 'unknown') return -1;
+  const aIndex = SOURCE_TYPE_ORDER.indexOf(a as (typeof SOURCE_TYPE_ORDER)[number]);
+  const bIndex = SOURCE_TYPE_ORDER.indexOf(b as (typeof SOURCE_TYPE_ORDER)[number]);
+  if (aIndex !== -1 || bIndex !== -1) {
+    if (aIndex === -1) return 1;
+    if (bIndex === -1) return -1;
+    return aIndex - bIndex;
+  }
+  return a.localeCompare(b);
+};
+
+const buildTypeGroups = (
+  options: SourceTreeOption[],
+  t: (key: string, options?: Record<string, unknown>) => string
+): SourceTreeTypeGroup[] => {
+  const byType = new Map<string, SourceTreeOption[]>();
+
+  options.forEach((option) => {
+    const typeKey = normalizeSourceTypeKey(option.type);
+    const list = byType.get(typeKey) ?? [];
+    list.push(option);
+    byType.set(typeKey, list);
+  });
+
+  return Array.from(byType.entries())
+    .sort(([a], [b]) => compareSourceTypeKeys(a, b))
+    .map(([typeKey, typeOptions]) => ({
+      id: typeKey,
+      label: formatSourceTypeLabel(typeKey, t),
+      options: typeOptions.sort((a, b) => b.count - a.count || a.label.localeCompare(b.label)),
+    }));
+};
+
 const buildSourceTreeGroups = (
   usage: UsagePayload | null,
   sourceInfoMap: ReturnType<typeof buildSourceInfoMap>,
@@ -196,7 +271,7 @@ const buildSourceTreeGroups = (
     });
   });
 
-  const grouped = new Map<SourceTreeGroup['id'], SourceTreeGroup['options']>();
+  const grouped = new Map<SourceTreeGroup['id'], SourceTreeOption[]>();
   optionMap.forEach((option) => {
     const options = grouped.get(option.groupId) ?? [];
     options.push({
@@ -208,18 +283,19 @@ const buildSourceTreeGroups = (
     grouped.set(option.groupId, options);
   });
 
-  return SOURCE_GROUP_ORDER.map((id) => ({
-    id,
-    label:
-      id === 'provider'
-        ? t('usage_stats.source_group_provider')
-        : id === 'authFile'
-          ? t('usage_stats.source_group_auth_file')
-          : t('usage_stats.source_group_other'),
-    options: (grouped.get(id) ?? []).sort(
-      (a, b) => b.count - a.count || a.label.localeCompare(b.label)
-    ),
-  })).filter((group) => group.options.length > 0);
+  return SOURCE_GROUP_ORDER.map((id) => {
+    const options = grouped.get(id) ?? [];
+    return {
+      id,
+      label:
+        id === 'provider'
+          ? t('usage_stats.source_group_provider')
+          : id === 'authFile'
+            ? t('usage_stats.source_group_auth_file')
+            : t('usage_stats.source_group_other'),
+      typeGroups: buildTypeGroups(options, t),
+    };
+  }).filter((group) => group.typeGroups.length > 0);
 };
 
 const createEmptyFilteredUsage = (usage: UsagePayload): UsagePayload => ({
@@ -462,7 +538,10 @@ export function UsagePage() {
     [authFileMap, sourceInfoMap, t, usage]
   );
   const sourceOptionKeys = useMemo(
-    () => sourceTreeGroups.flatMap((group) => group.options.map((option) => option.key)),
+    () =>
+      sourceTreeGroups.flatMap((group) =>
+        group.typeGroups.flatMap((typeGroup) => typeGroup.options.map((option) => option.key))
+      ),
     [sourceTreeGroups]
   );
   const selectedSourceKeys = useMemo(

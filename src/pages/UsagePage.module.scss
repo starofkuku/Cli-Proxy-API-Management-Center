@@ -107,8 +107,8 @@
   top: calc(100% + 8px);
   right: 0;
   z-index: 40;
-  width: min(360px, calc(100vw - 32px));
-  max-height: min(440px, calc(100vh - 160px));
+  width: min(400px, calc(100vw - 32px));
+  max-height: min(480px, calc(100vh - 160px));
   display: flex;
   flex-direction: column;
   border: 1px solid var(--border-color);
@@ -158,6 +158,27 @@
   padding: 6px 4px;
 }
 
+.sourceTreeTypeGroups {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-left: 16px;
+}
+
+.sourceTreeTypeGroup {
+  border-radius: $radius-sm;
+  background: color-mix(in srgb, var(--bg-secondary) 55%, transparent);
+  padding: 4px 0 4px 0;
+}
+
+.sourceTreeTypeHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 8px 4px 4px;
+}
+
 .sourceTreeCheck {
   min-width: 0;
 }
@@ -167,6 +188,13 @@
   min-width: 0;
   font-size: 12px;
   font-weight: 700;
+}
+
+.sourceTreeTypeLabel {
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-secondary);
 }
 
 .sourceTreeCount {
@@ -181,6 +209,7 @@
   flex-direction: column;
   gap: 2px;
   padding-left: 28px;
+  padding-right: 4px;
 }
 
 .sourceTreeItem {
