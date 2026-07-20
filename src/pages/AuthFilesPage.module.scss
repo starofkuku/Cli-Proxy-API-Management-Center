@@ -100,11 +100,11 @@
   }
 }
 
-.failedUsageActionRow {
+.failedUsageInlineAction {
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  gap: $spacing-sm;
+  grid-column: 1 / -1;
   padding-top: 2px;
 }
 

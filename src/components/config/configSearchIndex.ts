@@ -10,6 +10,7 @@ export type VisualSectionId =
   | 'network'
   | 'logging'
   | 'quota'
+  | 'auth-files'
   | 'streaming'
   | 'advanced'
   | 'payload'
@@ -328,6 +329,14 @@ export const CONFIG_FIELD_SEARCH_INDEX: ConfigFieldSearchEntry[] = [
     sectionId: 'quota',
     labelKey: L('sections.quota.antigravity_credits'),
     yamlKeys: ['quota-exceeded', 'antigravity-credits'],
+  },
+  // ── auth-files ────────────────────────────────────────────────────────────
+  {
+    fieldId: 'authFilesShowDeleteFailedUsage',
+    sectionId: 'auth-files',
+    labelKey: L('sections.auth_files.show_delete_failed_usage'),
+    hintKey: L('sections.auth_files.show_delete_failed_usage_desc'),
+    keywords: ['auth files', 'failed usage', 'delete credentials', 'browser', 'localstorage'],
   },
   // ── streaming ─────────────────────────────────────────────────────────────
   {

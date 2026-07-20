@@ -1198,6 +1198,12 @@
           "convert_failed": "Conversion failed",
           "import_failed": "RT import failed",
           "file_read_failed": "Unable to read the JSON file"
+        },
+        "auth_files": {
+          "title": "Auth Files",
+          "description": "Control auth-files page management actions",
+          "show_delete_failed_usage": "Show delete failed-call credentials",
+          "show_delete_failed_usage_desc": "Saved to this browser immediately. When enabled, shows the button next to Compact Mode on the auth-files page. Off by default."
         }
       },
       "api_keys": {

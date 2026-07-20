@@ -29,7 +29,7 @@ import {
 } from '@/components/ui/icons';
 import { ConfigSection } from '@/components/config/ConfigSection';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
-import { useQuotaPreferencesStore } from '@/stores';
+import { useAuthFilesPreferencesStore, useQuotaPreferencesStore } from '@/stores';
 import type {
   PayloadFilterRule,
   PayloadParamValidationErrorCode,
@@ -194,6 +194,12 @@ export function VisualConfigEditor({
   const { t } = useTranslation();
   const quotaProviderVisibility = useQuotaPreferencesStore((state) => state.providerVisibility);
   const setQuotaProviderVisible = useQuotaPreferencesStore((state) => state.setProviderVisible);
+  const showDeleteFailedUsageButton = useAuthFilesPreferencesStore(
+    (state) => state.showDeleteFailedUsageButton
+  );
+  const setShowDeleteFailedUsageButton = useAuthFilesPreferencesStore(
+    (state) => state.setShowDeleteFailedUsageButton
+  );
   const pageTransitionLayer = usePageTransitionLayer();
   const isCurrentLayer = pageTransitionLayer ? pageTransitionLayer.isCurrentLayer : true;
   const isMobile = useMediaQuery('(max-width: 768px)');
@@ -463,6 +469,12 @@ export function VisualConfigEditor({
         id: 'quota',
         title: t('config_management.visual.sections.quota.title'),
         icon: IconTimer,
+        errorCount: 0,
+      },
+      {
+        id: 'auth-files',
+        title: t('config_management.visual.sections.auth_files.title'),
+        icon: IconKey,
         errorCount: 0,
       },
       {
@@ -1470,11 +1482,38 @@ export function VisualConfigEditor({
             </ConfigSection>
 
             <ConfigSection
+              id="auth-files"
+              ref={(node) => {
+                sectionRefs.current['auth-files'] = node;
+              }}
+              indexLabel="05"
+              icon={<IconKey size={16} />}
+              title={t('config_management.visual.sections.auth_files.title')}
+              description={t('config_management.visual.sections.auth_files.description')}
+            >
+              <SectionGrid>
+                <FieldAnchor fieldId="authFilesShowDeleteFailedUsage">
+                  <ToggleRow
+                    title={t(
+                      'config_management.visual.sections.auth_files.show_delete_failed_usage'
+                    )}
+                    description={t(
+                      'config_management.visual.sections.auth_files.show_delete_failed_usage_desc'
+                    )}
+                    checked={showDeleteFailedUsageButton}
+                    disabled={disabled}
+                    onChange={(visible) => setShowDeleteFailedUsageButton(visible)}
+                  />
+                </FieldAnchor>
+              </SectionGrid>
+            </ConfigSection>
+
+            <ConfigSection
               id="streaming"
               ref={(node) => {
                 sectionRefs.current.streaming = node;
               }}
-              indexLabel="05"
+              indexLabel="06"
               icon={<IconSatellite size={16} />}
               title={t('config_management.visual.sections.streaming.title')}
               description={t('config_management.visual.sections.streaming.description')}
@@ -1583,7 +1622,7 @@ export function VisualConfigEditor({
               ref={(node) => {
                 sectionRefs.current.advanced = node;
               }}
-              indexLabel="06"
+              indexLabel="07"
               icon={<IconShield size={16} />}
               title={t('config_management.visual.sections.advanced.title')}
               description={t('config_management.visual.sections.advanced.description')}
@@ -1834,7 +1873,7 @@ export function VisualConfigEditor({
               ref={(node) => {
                 sectionRefs.current.payload = node;
               }}
-              indexLabel="07"
+              indexLabel="08"
               icon={<IconCode size={16} />}
               title={t('config_management.visual.sections.payload.title')}
               description={t('config_management.visual.sections.payload.description')}
@@ -1926,7 +1965,7 @@ export function VisualConfigEditor({
               ref={(node) => {
                 sectionRefs.current.converter = node;
               }}
-              indexLabel="08"
+              indexLabel="09"
               icon={<IconFileText size={16} />}
               title={t('config_management.visual.sections.converter.title')}
               description={t('config_management.visual.sections.converter.description')}

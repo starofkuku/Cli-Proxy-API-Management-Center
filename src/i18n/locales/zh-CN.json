@@ -1198,6 +1198,12 @@
           "convert_failed": "转换失败",
           "import_failed": "RT 导入失败",
           "file_read_failed": "无法读取 JSON 文件"
+        },
+        "auth_files": {
+          "title": "认证文件",
+          "description": "控制认证文件页面的管理操作显示",
+          "show_delete_failed_usage": "显示删除调用失败的凭证",
+          "show_delete_failed_usage_desc": "立即保存到当前浏览器；开启后在认证文件页简略模式旁显示该按钮，默认关闭"
         }
       },
       "api_keys": {

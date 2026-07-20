@@ -1224,6 +1224,12 @@
           "convert_failed": "轉換失敗",
           "import_failed": "RT 匯入失敗",
           "file_read_failed": "無法讀取 JSON 檔案"
+        },
+        "auth_files": {
+          "title": "認證檔案",
+          "description": "控制認證檔案頁面的管理操作顯示",
+          "show_delete_failed_usage": "顯示刪除呼叫失敗的憑證",
+          "show_delete_failed_usage_desc": "立即儲存到目前瀏覽器；開啟後在認證檔案頁簡略模式旁顯示該按鈕，預設關閉"
         }
       },
       "api_keys": {

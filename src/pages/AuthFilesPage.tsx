@@ -73,6 +73,7 @@ import {
 } from '@/features/authFiles/uiState';
 import {
   USAGE_STATS_STALE_TIME_MS,
+  useAuthFilesPreferencesStore,
   useAuthStore,
   useNotificationStore,
   useThemeStore,
@@ -250,6 +251,9 @@ export function AuthFilesPage() {
 
   const failedSources = useUsageStatsStore((state) => state.failedSources);
   const loadUsageStats = useUsageStatsStore((state) => state.loadUsageStats);
+  const showDeleteFailedUsageButton = useAuthFilesPreferencesStore(
+    (state) => state.showDeleteFailedUsageButton
+  );
 
   const disableControls = connectionStatus !== 'connected';
   const normalizedFilter = normalizeProviderKey(String(filter));
@@ -1102,21 +1106,6 @@ export function AuthFilesPage() {
         </button>
       </div>
 
-      {!recycleSelected && (
-        <div className={styles.failedUsageActionRow}>
-          <Button
-            variant="danger"
-            size="sm"
-            onClick={() => void openFailedUsageModal()}
-            disabled={disableControls || loading || failedUsageLoading || failedUsageDeleting}
-            loading={failedUsageLoading}
-            title={t('auth_files.delete_failed_usage_hint_button')}
-          >
-            {t('auth_files.delete_failed_usage_button')}
-            {failedUsageCandidateCount > 0 ? ` (${failedUsageCandidateCount})` : ''}
-          </Button>
-        </div>
-      )}
     </div>
   );
 
@@ -1286,6 +1275,25 @@ export function AuthFilesPage() {
                           }
                         />
                       </div>
+                      {showDeleteFailedUsageButton && !recycleSelected ? (
+                        <div className={styles.failedUsageInlineAction}>
+                          <Button
+                            variant="danger"
+                            size="sm"
+                            onClick={() => void openFailedUsageModal()}
+                            disabled={
+                              disableControls || loading || failedUsageLoading || failedUsageDeleting
+                            }
+                            loading={failedUsageLoading}
+                            title={t('auth_files.delete_failed_usage_hint_button')}
+                          >
+                            {t('auth_files.delete_failed_usage_button')}
+                            {failedUsageCandidateCount > 0
+                              ? ` (${failedUsageCandidateCount})`
+                              : ''}
+                          </Button>
+                        </div>
+                      ) : null}
                     </div>
                     <div className={`${styles.filterItem} ${styles.filterToggleItem}`}>
                       <label>{t('auth_files.display_options_label')}</label>
