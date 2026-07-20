@@ -361,7 +361,16 @@
     "delete_failed_usage_success": "已永久删除 {{count}} 个调用失败的凭证",
     "delete_failed_usage_partial": "删除完成：成功 {{success}} 个，失败 {{failed}} 个",
     "delete_failed_usage_failed": "删除调用失败的凭证失败",
-    "delete_failed_usage_load_failed": "加载使用统计失败"
+    "delete_failed_usage_load_failed": "加载使用统计失败",
+    "batch_invert_all": "反选",
+    "recycle_batch_restore_title": "批量还原回收站凭证",
+    "recycle_batch_restore_confirm": "确定要还原选中的 {{count}} 个凭证吗？",
+    "recycle_batch_restore_success": "已还原 {{count}} 个凭证",
+    "recycle_batch_restore_partial": "还原完成：成功 {{success}} 个，失败 {{failed}} 个",
+    "recycle_batch_permanent_delete_title": "批量永久删除回收站凭证",
+    "recycle_batch_permanent_delete_confirm": "确定要永久删除选中的 {{count}} 个凭证吗？此操作不可恢复。",
+    "recycle_batch_permanent_delete_success": "已永久删除 {{count}} 个凭证",
+    "recycle_batch_permanent_delete_partial": "永久删除完成：成功 {{success}} 个，失败 {{failed}} 个"
   },
   "antigravity_subscription": {
     "plan_unknown": "未知",

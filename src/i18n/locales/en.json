@@ -361,7 +361,16 @@
     "delete_failed_usage_success": "Permanently deleted {{count}} failed-call credentials",
     "delete_failed_usage_partial": "Delete finished: {{success}} succeeded, {{failed}} failed",
     "delete_failed_usage_failed": "Failed to delete failed-call credentials",
-    "delete_failed_usage_load_failed": "Failed to load usage statistics"
+    "delete_failed_usage_load_failed": "Failed to load usage statistics",
+    "batch_invert_all": "Invert",
+    "recycle_batch_restore_title": "Restore selected recycle items",
+    "recycle_batch_restore_confirm": "Restore {{count}} selected credentials?",
+    "recycle_batch_restore_success": "Restored {{count}} credentials",
+    "recycle_batch_restore_partial": "Restore finished: {{success}} succeeded, {{failed}} failed",
+    "recycle_batch_permanent_delete_title": "Permanently delete selected recycle items",
+    "recycle_batch_permanent_delete_confirm": "Permanently delete {{count}} selected credentials? This cannot be undone.",
+    "recycle_batch_permanent_delete_success": "Permanently deleted {{count}} credentials",
+    "recycle_batch_permanent_delete_partial": "Permanent delete finished: {{success}} succeeded, {{failed}} failed"
   },
   "antigravity_subscription": {
     "plan_unknown": "Unknown",

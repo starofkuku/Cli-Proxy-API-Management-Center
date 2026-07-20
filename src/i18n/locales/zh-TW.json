@@ -361,7 +361,16 @@
     "delete_failed_usage_success": "已永久刪除 {{count}} 個呼叫失敗的憑證",
     "delete_failed_usage_partial": "刪除完成：成功 {{success}} 個，失敗 {{failed}} 個",
     "delete_failed_usage_failed": "刪除呼叫失敗的憑證失敗",
-    "delete_failed_usage_load_failed": "載入使用統計失敗"
+    "delete_failed_usage_load_failed": "載入使用統計失敗",
+    "batch_invert_all": "反選",
+    "recycle_batch_restore_title": "批次還原回收站憑證",
+    "recycle_batch_restore_confirm": "確定要還原選中的 {{count}} 個憑證嗎？",
+    "recycle_batch_restore_success": "已還原 {{count}} 個憑證",
+    "recycle_batch_restore_partial": "還原完成：成功 {{success}} 個，失敗 {{failed}} 個",
+    "recycle_batch_permanent_delete_title": "批次永久刪除回收站憑證",
+    "recycle_batch_permanent_delete_confirm": "確定要永久刪除選中的 {{count}} 個憑證嗎？此操作不可恢復。",
+    "recycle_batch_permanent_delete_success": "已永久刪除 {{count}} 個憑證",
+    "recycle_batch_permanent_delete_partial": "永久刪除完成：成功 {{success}} 個，失敗 {{failed}} 個"
   },
   "antigravity_subscription": {
     "plan_unknown": "未知",

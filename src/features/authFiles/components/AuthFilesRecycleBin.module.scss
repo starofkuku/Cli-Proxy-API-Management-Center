@@ -32,17 +32,30 @@
   border: 1px solid var(--border-color);
   border-radius: 12px;
   background: var(--bg-secondary);
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.cardSelected {
+  border-color: color-mix(in srgb, var(--primary-color) 55%, var(--border-color));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--primary-color) 28%, transparent);
 }
 
 .header {
   display: flex;
   min-width: 0;
   align-items: center;
-  justify-content: space-between;
   gap: 10px;
 }
 
+.cardSelection {
+  flex: 0 0 auto;
+}
+
 .name {
+  flex: 1 1 auto;
+  min-width: 0;
   overflow: hidden;
   color: var(--text-primary);
   font-weight: 650;

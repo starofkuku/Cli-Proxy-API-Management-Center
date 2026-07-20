@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { SelectionCheckbox } from '@/components/ui/SelectionCheckbox';
 import { IconRefreshCw, IconTrash2 } from '@/components/ui/icons';
 import type { AuthFileRecycleItem } from '@/services/api/authFiles';
 import { formatFileSize } from '@/utils/format';
@@ -8,9 +9,12 @@ import styles from './AuthFilesRecycleBin.module.scss';
 
 type AuthFilesRecycleBinProps = {
   files: AuthFileRecycleItem[];
+  selectedNames: Set<string>;
   loading: boolean;
   mutatingName: string | null;
+  batchMutating?: boolean;
   disabled: boolean;
+  onToggleSelect: (name: string) => void;
   onRestore: (file: AuthFileRecycleItem) => void;
   onPermanentDelete: (file: AuthFileRecycleItem) => void;
 };
@@ -22,9 +26,12 @@ const formatDeletedAt = (value: string) => {
 
 export function AuthFilesRecycleBin({
   files,
+  selectedNames,
   loading,
   mutatingName,
+  batchMutating = false,
   disabled,
+  onToggleSelect,
   onRestore,
   onPermanentDelete,
 }: AuthFilesRecycleBinProps) {
@@ -52,9 +59,27 @@ export function AuthFilesRecycleBin({
       <div className={styles.grid}>
         {files.map((file) => {
           const loadingFile = mutatingName === file.name;
+          const selected = selectedNames.has(file.name);
+          const actionsDisabled = disabled || batchMutating || Boolean(mutatingName);
+
           return (
-            <article key={file.name} className={styles.card}>
+            <article
+              key={file.name}
+              className={`${styles.card} ${selected ? styles.cardSelected : ''}`}
+            >
               <div className={styles.header}>
+                <SelectionCheckbox
+                  checked={selected}
+                  onChange={() => onToggleSelect(file.name)}
+                  disabled={actionsDisabled && !selected}
+                  className={styles.cardSelection}
+                  ariaLabel={
+                    selected ? t('auth_files.batch_deselect') : t('auth_files.batch_select_all')
+                  }
+                  title={
+                    selected ? t('auth_files.batch_deselect') : t('auth_files.batch_select_all')
+                  }
+                />
                 <div className={styles.name} title={file.originalName}>
                   {file.originalName}
                 </div>
@@ -79,7 +104,7 @@ export function AuthFilesRecycleBin({
                 <Button
                   variant="secondary"
                   size="sm"
-                  disabled={disabled || Boolean(mutatingName)}
+                  disabled={actionsDisabled}
                   loading={loadingFile}
                   onClick={() => onRestore(file)}
                 >
@@ -89,7 +114,7 @@ export function AuthFilesRecycleBin({
                 <Button
                   variant="danger"
                   size="sm"
-                  disabled={disabled || Boolean(mutatingName)}
+                  disabled={actionsDisabled}
                   onClick={() => onPermanentDelete(file)}
                 >
                   <IconTrash2 size={14} />

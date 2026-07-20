@@ -354,7 +354,16 @@
     "delete_failed_usage_success": "Безвозвратно удалено {{count}} учетных данных с ошибками",
     "delete_failed_usage_partial": "Удаление завершено: успешно {{success}}, с ошибкой {{failed}}",
     "delete_failed_usage_failed": "Не удалось удалить учетные данные с ошибками",
-    "delete_failed_usage_load_failed": "Не удалось загрузить статистику использования"
+    "delete_failed_usage_load_failed": "Не удалось загрузить статистику использования",
+    "batch_invert_all": "Инвертировать",
+    "recycle_batch_restore_title": "Восстановить выбранные из корзины",
+    "recycle_batch_restore_confirm": "Восстановить {{count}} выбранных учетных данных?",
+    "recycle_batch_restore_success": "Восстановлено {{count}} учетных данных",
+    "recycle_batch_restore_partial": "Восстановление завершено: успешно {{success}}, с ошибкой {{failed}}",
+    "recycle_batch_permanent_delete_title": "Безвозвратно удалить выбранные из корзины",
+    "recycle_batch_permanent_delete_confirm": "Безвозвратно удалить {{count}} выбранных учетных данных? Это нельзя отменить.",
+    "recycle_batch_permanent_delete_success": "Безвозвратно удалено {{count}} учетных данных",
+    "recycle_batch_permanent_delete_partial": "Удаление завершено: успешно {{success}}, с ошибкой {{failed}}"
   },
   "antigravity_subscription": {
     "plan_unknown": "Неизвестно",

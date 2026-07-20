@@ -168,6 +168,8 @@ export function AuthFilesPage() {
   const [recycleFiles, setRecycleFiles] = useState<AuthFileRecycleItem[]>([]);
   const [recycleLoading, setRecycleLoading] = useState(true);
   const [recycleMutatingName, setRecycleMutatingName] = useState<string | null>(null);
+  const [selectedRecycleNames, setSelectedRecycleNames] = useState<Set<string>>(new Set());
+  const [recycleBatchMutating, setRecycleBatchMutating] = useState(false);
   const [trashInvalidLoading, setTrashInvalidLoading] = useState(false);
   const [failedUsageModalOpen, setFailedUsageModalOpen] = useState(false);
   const [failedUsageLoading, setFailedUsageLoading] = useState(false);
@@ -258,7 +260,47 @@ export function AuthFilesPage() {
   const disableControls = connectionStatus !== 'connected';
   const normalizedFilter = normalizeProviderKey(String(filter));
   const recycleSelected = filter === RECYCLE_BIN_FILTER;
+  const recycleSelectionCount = selectedRecycleNames.size;
+  const selectedRecycleNameList = useMemo(
+    () => Array.from(selectedRecycleNames),
+    [selectedRecycleNames]
+  );
+  const activeSelectionCount = recycleSelected ? recycleSelectionCount : selectionCount;
   const failedUsageTypeFilter = recycleSelected ? 'all' : normalizedFilter;
+
+  const deselectAllRecycle = useCallback(() => {
+    setSelectedRecycleNames(new Set());
+  }, []);
+
+  const toggleRecycleSelect = useCallback((name: string) => {
+    setSelectedRecycleNames((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) {
+        next.delete(name);
+      } else {
+        next.add(name);
+      }
+      return next;
+    });
+  }, []);
+
+  const selectAllRecycle = useCallback(() => {
+    setSelectedRecycleNames(new Set(recycleFiles.map((file) => file.name)));
+  }, [recycleFiles]);
+
+  const invertRecycleSelection = useCallback(() => {
+    setSelectedRecycleNames((prev) => {
+      const next = new Set(prev);
+      recycleFiles.forEach((file) => {
+        if (next.has(file.name)) {
+          next.delete(file.name);
+        } else {
+          next.add(file.name);
+        }
+      });
+      return next;
+    });
+  }, [recycleFiles]);
   const failedUsageGroups = useMemo(
     () =>
       matchFailedUsageAuthFiles(failedSources, files, {
@@ -639,6 +681,12 @@ export function AuthFilesPage() {
           t('auth_files.recycle_restore_success', { name: file.originalName }),
           'success'
         );
+        setSelectedRecycleNames((prev) => {
+          if (!prev.has(file.name)) return prev;
+          const next = new Set(prev);
+          next.delete(file.name);
+          return next;
+        });
         await Promise.all([loadFiles(), loadRecycleBin()]);
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : t('common.unknown_error');
@@ -665,6 +713,12 @@ export function AuthFilesPage() {
               t('auth_files.recycle_permanent_delete_success', { name: file.originalName }),
               'success'
             );
+            setSelectedRecycleNames((prev) => {
+              if (!prev.has(file.name)) return prev;
+              const next = new Set(prev);
+              next.delete(file.name);
+              return next;
+            });
             await loadRecycleBin();
           } catch (err: unknown) {
             const message = err instanceof Error ? err.message : t('common.unknown_error');
@@ -680,6 +734,99 @@ export function AuthFilesPage() {
     },
     [loadRecycleBin, showConfirmation, showNotification, t]
   );
+
+  const handleBatchRestoreRecycle = useCallback(() => {
+    const names = Array.from(selectedRecycleNames);
+    if (names.length === 0) return;
+
+    showConfirmation({
+      title: t('auth_files.recycle_batch_restore_title'),
+      message: t('auth_files.recycle_batch_restore_confirm', { count: names.length }),
+      confirmText: t('auth_files.recycle_restore_button'),
+      onConfirm: async () => {
+        setRecycleBatchMutating(true);
+        try {
+          const result = await authFilesApi.restoreRecycleFiles(names);
+          const success = result.deleted;
+          const failed = result.failed.length;
+          if (failed === 0) {
+            showNotification(
+              t('auth_files.recycle_batch_restore_success', { count: success }),
+              'success'
+            );
+          } else {
+            showNotification(
+              t('auth_files.recycle_batch_restore_partial', { success, failed }),
+              'warning'
+            );
+          }
+          deselectAllRecycle();
+          await Promise.all([loadFiles(), loadRecycleBin()]);
+        } catch (err: unknown) {
+          const message = err instanceof Error ? err.message : t('common.unknown_error');
+          showNotification(`${t('auth_files.recycle_restore_failed')}: ${message}`, 'error');
+        } finally {
+          setRecycleBatchMutating(false);
+        }
+      },
+    });
+  }, [
+    deselectAllRecycle,
+    loadFiles,
+    loadRecycleBin,
+    selectedRecycleNames,
+    showConfirmation,
+    showNotification,
+    t,
+  ]);
+
+  const handleBatchPermanentDeleteRecycle = useCallback(() => {
+    const names = Array.from(selectedRecycleNames);
+    if (names.length === 0) return;
+
+    showConfirmation({
+      title: t('auth_files.recycle_batch_permanent_delete_title'),
+      message: t('auth_files.recycle_batch_permanent_delete_confirm', { count: names.length }),
+      confirmText: t('auth_files.recycle_permanent_delete_button'),
+      variant: 'danger',
+      onConfirm: async () => {
+        setRecycleBatchMutating(true);
+        try {
+          const result = await authFilesApi.permanentlyDeleteRecycleFiles(names);
+          const success = result.deleted;
+          const failed = result.failed.length;
+          if (failed === 0) {
+            showNotification(
+              t('auth_files.recycle_batch_permanent_delete_success', { count: success }),
+              'success'
+            );
+          } else {
+            showNotification(
+              t('auth_files.recycle_batch_permanent_delete_partial', { success, failed }),
+              'warning'
+            );
+          }
+          deselectAllRecycle();
+          await loadRecycleBin();
+        } catch (err: unknown) {
+          const message = err instanceof Error ? err.message : t('common.unknown_error');
+          showNotification(
+            `${t('auth_files.recycle_permanent_delete_failed')}: ${message}`,
+            'error'
+          );
+        } finally {
+          setRecycleBatchMutating(false);
+        }
+      },
+    });
+  }, [
+    deselectAllRecycle,
+    loadRecycleBin,
+    selectedRecycleNames,
+    showConfirmation,
+    showNotification,
+    t,
+  ]);
 
   const closePasteJsonModal = useCallback(() => {
     if (uploading) return;
@@ -971,15 +1118,33 @@ export function AuthFilesPage() {
   );
 
   useEffect(() => {
-    selectionCountRef.current = selectionCount;
-    if (selectionCount > 0) {
+    selectionCountRef.current = activeSelectionCount;
+    if (activeSelectionCount > 0) {
       setBatchActionBarVisible(true);
     }
-  }, [selectionCount]);
+  }, [activeSelectionCount]);
+
+  // Drop recycle selections that no longer exist after refresh/mutation.
+  useEffect(() => {
+    setSelectedRecycleNames((prev) => {
+      if (prev.size === 0) return prev;
+      const existing = new Set(recycleFiles.map((file) => file.name));
+      let changed = false;
+      const next = new Set<string>();
+      prev.forEach((name) => {
+        if (existing.has(name)) {
+          next.add(name);
+        } else {
+          changed = true;
+        }
+      });
+      return changed ? next : prev;
+    });
+  }, [recycleFiles]);
 
   useLayoutEffect(() => {
     if (!batchActionBarVisible) return;
-    const currentCount = selectionCount;
+    const currentCount = activeSelectionCount;
     const previousCount = previousSelectionCountRef.current;
     const actionsEl = floatingBatchActionsRef.current;
     if (!actionsEl) return;
@@ -1023,7 +1188,7 @@ export function AuthFilesPage() {
     }
 
     previousSelectionCountRef.current = currentCount;
-  }, [batchActionBarVisible, selectionCount]);
+  }, [activeSelectionCount, batchActionBarVisible]);
 
   useEffect(
     () => () => {
@@ -1057,6 +1222,7 @@ export function AuthFilesPage() {
               onClick={() => {
                 setFilter(type);
                 setPage(1);
+                deselectAllRecycle();
               }}
             >
               <span className={styles.filterTagLabel}>
@@ -1094,6 +1260,7 @@ export function AuthFilesPage() {
             setFilter(RECYCLE_BIN_FILTER);
             setPage(1);
             deselectAll();
+            deselectAllRecycle();
           }}
         >
           <span className={styles.filterTagLabel}>
@@ -1210,9 +1377,12 @@ export function AuthFilesPage() {
             {recycleSelected ? (
               <AuthFilesRecycleBin
                 files={recycleFiles}
+                selectedNames={selectedRecycleNames}
                 loading={recycleLoading}
                 mutatingName={recycleMutatingName}
+                batchMutating={recycleBatchMutating}
                 disabled={disableControls}
+                onToggleSelect={toggleRecycleSelect}
                 onRestore={(file) => void handleRestoreRecycleFile(file)}
                 onPermanentDelete={handlePermanentDeleteRecycleFile}
               />
@@ -1489,71 +1659,134 @@ export function AuthFilesPage() {
         ? createPortal(
             <div className={styles.batchActionContainer} ref={floatingBatchActionsRef}>
               <div className={styles.batchActionBar}>
-                <div className={styles.batchActionLeft}>
-                  <span className={styles.batchSelectionText}>
-                    {t('auth_files.batch_selected', { count: selectionCount })}
-                  </span>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => selectAllVisible(pageItems)}
-                    disabled={selectablePageItems.length === 0}
-                  >
-                    {t('auth_files.batch_select_page')}
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => selectAllVisible(sorted)}
-                    disabled={selectableFilteredItems.length === 0}
-                  >
-                    {t('auth_files.batch_select_filtered')}
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => invertVisibleSelection(pageItems)}
-                    disabled={selectablePageItems.length === 0}
-                  >
-                    {t('auth_files.batch_invert_page')}
-                  </Button>
-                  <Button variant="ghost" size="sm" onClick={deselectAll}>
-                    {t('auth_files.batch_deselect')}
-                  </Button>
-                </div>
-                <div className={styles.batchActionRight}>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => void batchDownload(selectedNames)}
-                    disabled={disableControls || selectedNames.length === 0}
-                  >
-                    {t('auth_files.batch_download')}
-                  </Button>
-                  <Button
-                    size="sm"
-                    onClick={() => batchSetStatus(selectedNames, true)}
-                    disabled={batchStatusButtonsDisabled}
-                  >
-                    {t('auth_files.batch_enable')}
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => batchSetStatus(selectedNames, false)}
-                    disabled={batchStatusButtonsDisabled}
-                  >
-                    {t('auth_files.batch_disable')}
-                  </Button>
-                  <Button
-                    variant="danger"
-                    size="sm"
-                    onClick={() => batchDelete(selectedNames)}
-                    disabled={disableControls || selectedNames.length === 0}
-                  >
-                    {t('common.delete')}
-                  </Button>
-                </div>
+                {recycleSelected ? (
+                  <>
+                    <div className={styles.batchActionLeft}>
+                      <span className={styles.batchSelectionText}>
+                        {t('auth_files.batch_selected', { count: recycleSelectionCount })}
+                      </span>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={selectAllRecycle}
+                        disabled={recycleFiles.length === 0 || recycleBatchMutating}
+                      >
+                        {t('auth_files.batch_select_all')}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={invertRecycleSelection}
+                        disabled={recycleFiles.length === 0 || recycleBatchMutating}
+                      >
+                        {t('auth_files.batch_invert_all')}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={deselectAllRecycle}
+                        disabled={recycleSelectionCount === 0 || recycleBatchMutating}
+                      >
+                        {t('auth_files.batch_deselect')}
+                      </Button>
+                    </div>
+                    <div className={styles.batchActionRight}>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={handleBatchRestoreRecycle}
+                        disabled={
+                          disableControls ||
+                          selectedRecycleNameList.length === 0 ||
+                          recycleBatchMutating
+                        }
+                        loading={recycleBatchMutating}
+                      >
+                        {t('auth_files.recycle_restore_button')}
+                      </Button>
+                      <Button
+                        variant="danger"
+                        size="sm"
+                        onClick={handleBatchPermanentDeleteRecycle}
+                        disabled={
+                          disableControls ||
+                          selectedRecycleNameList.length === 0 ||
+                          recycleBatchMutating
+                        }
+                      >
+                        {t('auth_files.recycle_permanent_delete_button')}
+                      </Button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className={styles.batchActionLeft}>
+                      <span className={styles.batchSelectionText}>
+                        {t('auth_files.batch_selected', { count: selectionCount })}
+                      </span>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => selectAllVisible(pageItems)}
+                        disabled={selectablePageItems.length === 0}
+                      >
+                        {t('auth_files.batch_select_page')}
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => selectAllVisible(sorted)}
+                        disabled={selectableFilteredItems.length === 0}
+                      >
+                        {t('auth_files.batch_select_filtered')}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => invertVisibleSelection(pageItems)}
+                        disabled={selectablePageItems.length === 0}
+                      >
+                        {t('auth_files.batch_invert_page')}
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={deselectAll}>
+                        {t('auth_files.batch_deselect')}
+                      </Button>
+                    </div>
+                    <div className={styles.batchActionRight}>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => void batchDownload(selectedNames)}
+                        disabled={disableControls || selectedNames.length === 0}
+                      >
+                        {t('auth_files.batch_download')}
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={() => batchSetStatus(selectedNames, true)}
+                        disabled={batchStatusButtonsDisabled}
+                      >
+                        {t('auth_files.batch_enable')}
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => batchSetStatus(selectedNames, false)}
+                        disabled={batchStatusButtonsDisabled}
+                      >
+                        {t('auth_files.batch_disable')}
+                      </Button>
+                      <Button
+                        variant="danger"
+                        size="sm"
+                        onClick={() => batchDelete(selectedNames)}
+                        disabled={disableControls || selectedNames.length === 0}
+                      >
+                        {t('common.delete')}
+                      </Button>
+                    </div>
+                  </>
+                )}
               </div>
             </div>,
             document.body
