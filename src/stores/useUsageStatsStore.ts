@@ -3,6 +3,10 @@ import { usageApi } from '@/services/api';
 import type { UsageQueryParams } from '@/services/api/usage';
 import { useAuthStore } from '@/stores/useAuthStore';
 import {
+  collectFailedUsageSources,
+  type FailedUsageSourceRecord,
+} from '@/utils/failedUsageCredentials';
+import {
   collectUsageDetails,
   computeKeyStatsFromDetails,
   type KeyStats,
@@ -24,6 +28,8 @@ type UsageStatsState = {
   usage: UsageStatsSnapshot | null;
   keyStats: KeyStats;
   usageDetails: UsageDetail[];
+  /** Failed request sources aggregated from the latest /usage response. */
+  failedSources: FailedUsageSourceRecord[];
   loading: boolean;
   error: string | null;
   lastRefreshedAt: number | null;
@@ -53,6 +59,7 @@ export const useUsageStatsStore = create<UsageStatsState>((set, get) => ({
   usage: null,
   keyStats: createEmptyKeyStats(),
   usageDetails: [],
+  failedSources: [],
   loading: false,
   error: null,
   lastRefreshedAt: null,
@@ -93,6 +100,7 @@ export const useUsageStatsStore = create<UsageStatsState>((set, get) => ({
         usage: null,
         keyStats: createEmptyKeyStats(),
         usageDetails: [],
+        failedSources: [],
         error: null,
         lastRefreshedAt: null,
         scopeKey,
@@ -112,10 +120,13 @@ export const useUsageStatsStore = create<UsageStatsState>((set, get) => ({
         if (requestId !== usageRequestToken) return;
 
         const usageDetails = collectUsageDetails(usage);
+        // Record failed request sources for auth-file cleanup (classified later by type).
+        const failedSources = collectFailedUsageSources(usageDetails);
         set({
           usage,
           keyStats: computeKeyStatsFromDetails(usageDetails),
           usageDetails,
+          failedSources,
           loading: false,
           error: null,
           lastRefreshedAt: Date.now(),
@@ -148,6 +159,7 @@ export const useUsageStatsStore = create<UsageStatsState>((set, get) => ({
       usage: null,
       keyStats: createEmptyKeyStats(),
       usageDetails: [],
+      failedSources: [],
       loading: false,
       error: null,
       lastRefreshedAt: null,

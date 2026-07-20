@@ -27,6 +27,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { ToggleSwitch } from '@/components/ui/ToggleSwitch';
 import { AuthFilesStatusFilterCard } from '@/features/authFiles/components/AuthFilesStatusFilterCard';
 import { AuthFilesRecycleBin } from '@/features/authFiles/components/AuthFilesRecycleBin';
+import { DeleteFailedUsageCredentialsModal } from '@/features/authFiles/components/DeleteFailedUsageCredentialsModal';
 import { copyToClipboard } from '@/utils/clipboard';
 import {
   MAX_CARD_PAGE_SIZE,
@@ -43,6 +44,8 @@ import {
   type QuotaProviderType,
   type ResolvedTheme,
 } from '@/features/authFiles/constants';
+import { matchFailedUsageAuthFiles } from '@/utils/failedUsageCredentials';
+import { resolveUsageTimeRangeQuery } from '@/utils/usage';
 import { AuthFileCard } from '@/features/authFiles/components/AuthFileCard';
 import { AuthFileModelsModal } from '@/features/authFiles/components/AuthFileModelsModal';
 import { AuthFilesPrefixProxyEditorModal } from '@/features/authFiles/components/AuthFilesPrefixProxyEditorModal';
@@ -68,7 +71,13 @@ import {
   type AuthFilesStatusFilterMode,
   type AuthFilesSortMode,
 } from '@/features/authFiles/uiState';
-import { useAuthStore, useNotificationStore, useThemeStore } from '@/stores';
+import {
+  USAGE_STATS_STALE_TIME_MS,
+  useAuthStore,
+  useNotificationStore,
+  useThemeStore,
+  useUsageStatsStore,
+} from '@/stores';
 import { authFilesApi, type AuthFileRecycleItem } from '@/services/api';
 import styles from './AuthFilesPage.module.scss';
 
@@ -159,6 +168,9 @@ export function AuthFilesPage() {
   const [recycleLoading, setRecycleLoading] = useState(true);
   const [recycleMutatingName, setRecycleMutatingName] = useState<string | null>(null);
   const [trashInvalidLoading, setTrashInvalidLoading] = useState(false);
+  const [failedUsageModalOpen, setFailedUsageModalOpen] = useState(false);
+  const [failedUsageLoading, setFailedUsageLoading] = useState(false);
+  const [failedUsageDeleting, setFailedUsageDeleting] = useState(false);
   const archiveInputRef = useRef<HTMLInputElement | null>(null);
   const floatingBatchActionsRef = useRef<HTMLDivElement>(null);
   const batchActionAnimationRef = useRef<AnimationPlaybackControlsWithThen | null>(null);
@@ -236,9 +248,24 @@ export function AuthFilesPage() {
     loadFiles,
   });
 
+  const failedSources = useUsageStatsStore((state) => state.failedSources);
+  const loadUsageStats = useUsageStatsStore((state) => state.loadUsageStats);
+
   const disableControls = connectionStatus !== 'connected';
   const normalizedFilter = normalizeProviderKey(String(filter));
   const recycleSelected = filter === RECYCLE_BIN_FILTER;
+  const failedUsageTypeFilter = recycleSelected ? 'all' : normalizedFilter;
+  const failedUsageGroups = useMemo(
+    () =>
+      matchFailedUsageAuthFiles(failedSources, files, {
+        typeFilter: failedUsageTypeFilter,
+      }),
+    [failedSources, failedUsageTypeFilter, files]
+  );
+  const failedUsageCandidateCount = useMemo(
+    () => failedUsageGroups.reduce((sum, group) => sum + group.items.length, 0),
+    [failedUsageGroups]
+  );
   const quotaFilterType: QuotaProviderType | null = QUOTA_PROVIDER_TYPES.has(
     normalizedFilter as QuotaProviderType
   )
@@ -473,6 +500,100 @@ export function AuthFilesPage() {
       }
     },
     [loadFiles, showNotification, t]
+  );
+
+  const openFailedUsageModal = useCallback(async () => {
+    setFailedUsageModalOpen(true);
+    setFailedUsageLoading(true);
+    try {
+      await loadUsageStats({
+        force: true,
+        staleTimeMs: USAGE_STATS_STALE_TIME_MS,
+        params: resolveUsageTimeRangeQuery('today'),
+      });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : t('common.unknown_error');
+      showNotification(`${t('auth_files.delete_failed_usage_load_failed')}: ${message}`, 'error');
+    } finally {
+      setFailedUsageLoading(false);
+    }
+  }, [loadUsageStats, showNotification, t]);
+
+  const handleConfirmDeleteFailedUsage = useCallback(
+    (names: string[]) => {
+      const uniqueNames = Array.from(new Set(names.map((name) => name.trim()).filter(Boolean)));
+      if (uniqueNames.length === 0) return;
+
+      const scopeLabel =
+        failedUsageTypeFilter && failedUsageTypeFilter !== 'all'
+          ? getTypeLabel(t, failedUsageTypeFilter)
+          : t('auth_files.filter_all');
+
+      showConfirmation({
+        title: t('auth_files.delete_failed_usage_confirm_title'),
+        message: t('auth_files.delete_failed_usage_confirm_message', {
+          count: uniqueNames.length,
+          scope: scopeLabel,
+        }),
+        confirmText: t('auth_files.delete_failed_usage_confirm_button', {
+          count: uniqueNames.length,
+        }),
+        variant: 'danger',
+        onConfirm: async () => {
+          setFailedUsageDeleting(true);
+          try {
+            const result = await authFilesApi.deleteFiles(uniqueNames);
+            await Promise.all([loadFiles(), loadRecycleBin()]);
+            deselectAll();
+
+            if (result.failed.length === 0) {
+              showNotification(
+                t('auth_files.delete_failed_usage_success', { count: result.deleted }),
+                'success'
+              );
+              setFailedUsageModalOpen(false);
+            } else {
+              showNotification(
+                t('auth_files.delete_failed_usage_partial', {
+                  success: result.deleted,
+                  failed: result.failed.length,
+                }),
+                'warning'
+              );
+            }
+
+            // Refresh recorded failed sources after deletion.
+            try {
+              await loadUsageStats({
+                force: true,
+                staleTimeMs: USAGE_STATS_STALE_TIME_MS,
+                params: resolveUsageTimeRangeQuery('today'),
+              });
+            } catch {
+              // Keep modal open with previous usage snapshot if refresh fails.
+            }
+          } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : t('common.unknown_error');
+            showNotification(
+              `${t('auth_files.delete_failed_usage_failed')}: ${message}`,
+              'error'
+            );
+          } finally {
+            setFailedUsageDeleting(false);
+          }
+        },
+      });
+    },
+    [
+      deselectAll,
+      failedUsageTypeFilter,
+      loadFiles,
+      loadRecycleBin,
+      loadUsageStats,
+      showConfirmation,
+      showNotification,
+      t,
+    ]
   );
 
   const handleTrashInvalid = useCallback(() => {
@@ -979,6 +1100,22 @@ export function AuthFilesPage() {
           <span className={styles.filterTagCount}>{recycleFiles.length}</span>
         </button>
       </div>
+
+      {!recycleSelected && (
+        <div className={styles.failedUsageActionRow}>
+          <Button
+            variant="danger"
+            size="sm"
+            onClick={() => void openFailedUsageModal()}
+            disabled={disableControls || loading || failedUsageLoading || failedUsageDeleting}
+            loading={failedUsageLoading}
+            title={t('auth_files.delete_failed_usage_hint_button')}
+          >
+            {t('auth_files.delete_failed_usage_button')}
+            {failedUsageCandidateCount > 0 ? ` (${failedUsageCandidateCount})` : ''}
+          </Button>
+        </div>
+      )}
     </div>
   );
 
@@ -1280,6 +1417,20 @@ export function AuthFilesPage() {
         onCopyText={copyTextWithNotification}
         onSave={handlePrefixProxySave}
         onChange={handlePrefixProxyChange}
+      />
+
+      <DeleteFailedUsageCredentialsModal
+        open={failedUsageModalOpen}
+        loading={failedUsageLoading}
+        deleting={failedUsageDeleting}
+        typeFilter={failedUsageTypeFilter}
+        groups={failedUsageGroups}
+        onClose={() => {
+          if (!failedUsageDeleting) {
+            setFailedUsageModalOpen(false);
+          }
+        }}
+        onConfirm={handleConfirmDeleteFailedUsage}
       />
 
       <Modal

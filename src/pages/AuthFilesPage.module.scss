@@ -100,6 +100,133 @@
   }
 }
 
+.failedUsageActionRow {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: $spacing-sm;
+  padding-top: 2px;
+}
+
+.failedUsageModalBody {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 180px;
+}
+
+.failedUsageModalHint {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.failedUsageModalEmpty {
+  padding: 28px 12px;
+  text-align: center;
+  color: var(--text-tertiary);
+  font-size: 13px;
+}
+
+.failedUsageModalToolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px;
+  border-radius: $radius-sm;
+  background: var(--bg-secondary);
+}
+
+.failedUsageModalCount {
+  color: var(--text-tertiary);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.failedUsageModalGroups {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: min(420px, 55vh);
+  overflow: auto;
+  padding-right: 2px;
+}
+
+.failedUsageTypeGroup {
+  border: 1px solid color-mix(in srgb, var(--border-color) 70%, transparent);
+  border-radius: $radius-sm;
+  background: color-mix(in srgb, var(--bg-secondary) 45%, transparent);
+  padding: 6px 0;
+}
+
+.failedUsageTypeHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 10px;
+}
+
+.failedUsageTypeLabel {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.failedUsageTypeMeta {
+  color: var(--text-tertiary);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.failedUsageItemList {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 6px 4px 28px;
+}
+
+.failedUsageItem {
+  width: 100%;
+  align-items: flex-start;
+  border-radius: $radius-sm;
+  padding: 6px 6px;
+
+  &:hover {
+    background: color-mix(in srgb, var(--bg-primary) 70%, transparent);
+  }
+}
+
+.failedUsageItemLabel {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.failedUsageItemName {
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+
+.failedUsageItemMeta {
+  color: var(--text-tertiary);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.failedUsageModalFooter {
+  display: flex;
+  justify-content: flex-end;
+  gap: $spacing-sm;
+  width: 100%;
+}
+
 .filterAllIconWrap {
   position: relative;
   border-color: color-mix(in srgb, var(--primary-color) 20%, var(--border-color));
