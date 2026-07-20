@@ -542,7 +542,8 @@ export function AuthFilesPage() {
         onConfirm: async () => {
           setFailedUsageDeleting(true);
           try {
-            const result = await authFilesApi.deleteFiles(uniqueNames);
+            // Real permanent delete: soft-delete is only an intermediate backend step.
+            const result = await authFilesApi.permanentlyDeleteAuthFiles(uniqueNames);
             await Promise.all([loadFiles(), loadRecycleBin()]);
             deselectAll();
 

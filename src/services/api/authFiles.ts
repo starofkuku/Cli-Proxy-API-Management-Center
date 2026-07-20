@@ -520,6 +520,77 @@ export const authFilesApi = {
     return normalizeBatchDeleteResponse(payload, requestedNames);
   },
 
+  /**
+   * Hard-delete active auth files.
+   * Backend DELETE /auth-files only soft-deletes into the recycle bin, so this
+   * moves selected files there and immediately permanently removes those entries.
+   */
+  permanentlyDeleteAuthFiles: async (names: string[]): Promise<AuthFileBatchDeleteResult> => {
+    const requestedNames = normalizeRequestedAuthFileNames(names);
+    if (requestedNames.length === 0) {
+      return { status: 'ok', deleted: 0, files: [], failed: [] };
+    }
+
+    const softResult = await authFilesApi.deleteFiles(requestedNames);
+    const softDeletedOriginals = new Set(
+      softResult.files.length > 0
+        ? softResult.files
+        : requestedNames.filter(
+            (name) => !softResult.failed.some((item) => item.name === name)
+          )
+    );
+
+    if (softDeletedOriginals.size === 0) {
+      return softResult;
+    }
+
+    const recycleItems = await authFilesApi.listRecycleBin();
+    const recycleNamesByOriginal = new Map<string, string>();
+    recycleItems.forEach((item) => {
+      if (!softDeletedOriginals.has(item.originalName)) return;
+      // listRecycleBin is sorted newest-first; keep the first match per original.
+      if (!recycleNamesByOriginal.has(item.originalName)) {
+        recycleNamesByOriginal.set(item.originalName, item.name);
+      }
+    });
+
+    const recycleNames = Array.from(recycleNamesByOriginal.values());
+    if (recycleNames.length === 0) {
+      return {
+        status: softResult.failed.length > 0 ? 'partial' : 'ok',
+        deleted: softResult.deleted,
+        files: softResult.files,
+        failed: [
+          ...softResult.failed,
+          ...Array.from(softDeletedOriginals).map((name) => ({
+            name,
+            error: 'Recycle bin entry not found after soft delete',
+          })),
+        ],
+      };
+    }
+
+    const permanentResult = await authFilesApi.permanentlyDeleteRecycleFiles(recycleNames);
+    const permanentFailedOriginals = permanentResult.failed.map((item) => {
+      const matchedOriginal =
+        Array.from(recycleNamesByOriginal.entries()).find(([, recycleName]) => recycleName === item.name)?.[0] ??
+        item.name;
+      return { name: matchedOriginal, error: item.error };
+    });
+
+    const permanentlyDeletedOriginals = Array.from(recycleNamesByOriginal.entries())
+      .filter(([, recycleName]) => !permanentResult.failed.some((item) => item.name === recycleName))
+      .map(([originalName]) => originalName);
+
+    const failed = [...softResult.failed, ...permanentFailedOriginals];
+    return {
+      status: failed.length > 0 ? 'partial' : 'ok',
+      deleted: permanentlyDeletedOriginals.length,
+      files: permanentlyDeletedOriginals,
+      failed,
+    };
+  },
+
   deleteFile: (name: string) => authFilesApi.deleteFiles([name]),
 
   deleteAll: () => apiClient.delete('/auth-files', { params: { all: true } }),
