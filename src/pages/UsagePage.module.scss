@@ -174,9 +174,37 @@
 .sourceTreeTypeHeader {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  gap: 6px;
   padding: 4px 8px 4px 4px;
+  border-radius: $radius-sm;
+  cursor: pointer;
+  user-select: none;
+
+  &:hover {
+    background: color-mix(in srgb, var(--bg-primary) 55%, transparent);
+  }
+
+  &:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--primary-color) 45%, transparent);
+    outline-offset: 1px;
+  }
+}
+
+.sourceTreeTypeChevron {
+  flex-shrink: 0;
+  color: var(--text-tertiary);
+  transform: rotate(-90deg);
+  transition: transform $transition-fast;
+}
+
+.sourceTreeTypeChevronOpen {
+  transform: rotate(0deg);
+}
+
+.sourceTreeTypeCheckWrap {
+  min-width: 0;
+  flex: 1 1 auto;
+  cursor: default;
 }
 
 .sourceTreeCheck {
@@ -195,6 +223,10 @@
   font-size: 12px;
   font-weight: 700;
   color: var(--text-secondary);
+}
+
+.sourceTreeTypeHeader .sourceTreeCount {
+  margin-left: auto;
 }
 
 .sourceTreeCount {

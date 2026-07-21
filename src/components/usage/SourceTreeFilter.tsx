@@ -49,6 +49,8 @@ const applyKeys = (base: Set<string>, keys: string[], checked: boolean): Set<str
   return next;
 };
 
+const typeGroupCollapseKey = (groupId: string, typeId: string) => `${groupId}::${typeId}`;
+
 export function SourceTreeFilter({
   groups,
   selectedKeys,
@@ -57,6 +59,8 @@ export function SourceTreeFilter({
 }: SourceTreeFilterProps) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
+  /** Collapsed type-group keys; empty means all expanded (default). */
+  const [collapsedTypeIds, setCollapsedTypeIds] = useState<Set<string>>(new Set());
   const rootRef = useRef<HTMLDivElement | null>(null);
   const allKeys = useMemo(() => groups.flatMap((group) => collectGroupKeys(group)), [groups]);
   const selectedCount = allKeys.filter((key) => selectedKeys.has(key)).length;
@@ -89,6 +93,18 @@ export function SourceTreeFilter({
 
   const toggleOption = (option: SourceTreeOption, checked: boolean) => {
     onChange(applyKeys(selectedKeys, [option.key], checked));
+  };
+
+  const toggleTypeExpanded = (collapseKey: string) => {
+    setCollapsedTypeIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(collapseKey)) {
+        next.delete(collapseKey);
+      } else {
+        next.add(collapseKey);
+      }
+      return next;
+    });
   };
 
   const buttonText =
@@ -163,44 +179,72 @@ export function SourceTreeFilter({
                           (sum, option) => sum + option.count,
                           0
                         );
+                        const collapseKey = typeGroupCollapseKey(group.id, typeGroup.id);
+                        const isTypeExpanded = !collapsedTypeIds.has(collapseKey);
 
                         return (
                           <div className={styles.sourceTreeTypeGroup} key={typeGroup.id}>
-                            <div className={styles.sourceTreeTypeHeader}>
-                              <SelectionCheckbox
-                                checked={typeChecked}
-                                onChange={(checked) => toggleTypeGroup(typeGroup, checked)}
-                                label={typeGroup.label}
-                                className={styles.sourceTreeCheck}
-                                labelClassName={styles.sourceTreeTypeLabel}
+                            <div
+                              className={styles.sourceTreeTypeHeader}
+                              role="button"
+                              tabIndex={0}
+                              aria-expanded={isTypeExpanded}
+                              onClick={() => toggleTypeExpanded(collapseKey)}
+                              onKeyDown={(event) => {
+                                if (event.key === 'Enter' || event.key === ' ') {
+                                  event.preventDefault();
+                                  toggleTypeExpanded(collapseKey);
+                                }
+                              }}
+                            >
+                              <IconChevronDown
+                                size={14}
+                                className={`${styles.sourceTreeTypeChevron} ${
+                                  isTypeExpanded ? styles.sourceTreeTypeChevronOpen : ''
+                                }`}
                               />
+                              <div
+                                className={styles.sourceTreeTypeCheckWrap}
+                                onClick={(event) => event.stopPropagation()}
+                                onKeyDown={(event) => event.stopPropagation()}
+                              >
+                                <SelectionCheckbox
+                                  checked={typeChecked}
+                                  onChange={(checked) => toggleTypeGroup(typeGroup, checked)}
+                                  label={typeGroup.label}
+                                  className={styles.sourceTreeCheck}
+                                  labelClassName={styles.sourceTreeTypeLabel}
+                                />
+                              </div>
                               <span className={styles.sourceTreeCount}>
                                 {typeSelectedCount}/{typeKeys.length} ·{' '}
                                 {formatCompactNumber(typeTotalCount)}
                               </span>
                             </div>
 
-                            <div className={styles.sourceTreeItems}>
-                              {typeGroup.options.map((option) => (
-                                <SelectionCheckbox
-                                  key={option.key}
-                                  checked={selectedKeys.has(option.key)}
-                                  onChange={(checked) => toggleOption(option, checked)}
-                                  className={styles.sourceTreeItem}
-                                  labelClassName={styles.sourceTreeItemLabel}
-                                  label={
-                                    <>
-                                      <span className={styles.sourceTreeItemName}>
-                                        {option.label}
-                                      </span>
-                                      <span className={styles.sourceTreeItemMeta}>
-                                        {formatCompactNumber(option.count)}
-                                      </span>
-                                    </>
-                                  }
-                                />
-                              ))}
-                            </div>
+                            {isTypeExpanded ? (
+                              <div className={styles.sourceTreeItems}>
+                                {typeGroup.options.map((option) => (
+                                  <SelectionCheckbox
+                                    key={option.key}
+                                    checked={selectedKeys.has(option.key)}
+                                    onChange={(checked) => toggleOption(option, checked)}
+                                    className={styles.sourceTreeItem}
+                                    labelClassName={styles.sourceTreeItemLabel}
+                                    label={
+                                      <>
+                                        <span className={styles.sourceTreeItemName}>
+                                          {option.label}
+                                        </span>
+                                        <span className={styles.sourceTreeItemMeta}>
+                                          {formatCompactNumber(option.count)}
+                                        </span>
+                                      </>
+                                    }
+                                  />
+                                ))}
+                              </div>
+                            ) : null}
                           </div>
                         );
                       })}
