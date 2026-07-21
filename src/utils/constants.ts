@@ -15,7 +15,7 @@ export const CACHE_EXPIRY_MS = 30 * 1000; // 与基线保持一致，减少管�
 // 网络与版本信息
 export const DEFAULT_API_PORT = 8317;
 export const MANAGEMENT_API_PREFIX = '/v0/management';
-export const REQUEST_TIMEOUT_MS = 30 * 1000;
+export const REQUEST_TIMEOUT_MS = 2 * 60 * 1000;
 export const CPA_VERSION_HEADER_KEYS = ['x-cpa-version'];
 export const CPA_BUILD_DATE_HEADER_KEYS = ['x-cpa-build-date'];
 export const CPA_SUPPORT_PLUGIN_HEADER_KEYS = ['x-cpa-support-plugin'];
